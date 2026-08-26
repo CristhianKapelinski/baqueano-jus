@@ -10,13 +10,9 @@ import collections
 
 import numpy as np
 
+from avaliacao.amostragem import amostras, auc, brier, ece, treina
 from cacador.canon import BaseCanonica
 from cacador.features import CLASSES, FORMAS, NOMES
-from calibra import amostras, treina
-
-
-def brier(p, y):
-    return float(np.mean((p - y) ** 2))
 
 
 def cv_taxa(chaves, y, grupos, acc, alfa=2.0, folds=6):
@@ -70,10 +66,11 @@ def main():
             np.array([f'{f}|{c}' for f, c in zip(forma, classe)]), y, grupos, acc),
         'regressao logistica': cv_logistica(X, y, grupos),
     }
-    print(f'{"estrategia":26s} {"Brier":>9s} {"vs constante":>14s}')
+    print(f'{"estrategia":26s} {"Brier":>9s} {"ECE":>9s} {"AUC":>7s} {"vs constante":>14s}')
     ref = brier(cand['constante'], y)
     for nome, p in cand.items():
-        print(f'{nome:26s} {brier(p, y):9.5f} {ref - brier(p, y):+14.5f}')
+        print(f'{nome:26s} {brier(p, y):9.5f} {ece(p, y):9.5f} {auc(p, y):7.3f} '
+              f'{ref - brier(p, y):+14.5f}')
     melhor = min(cand, key=lambda k: brier(cand[k], y))
     print(f'\n-> vence: {melhor}')
 

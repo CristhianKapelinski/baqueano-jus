@@ -13,7 +13,7 @@ import pandas as pd
 
 from cacador.canon import BaseCanonica
 from cacador.pipeline import processa_documento
-from eval import DEV, HOLDOUT, alinha
+from .metrica import DEV, HOLDOUT, alinha
 
 DIGITO_PARA_LETRA = {'0': 'O', '1': 'l', '5': 'S', '9': 'g', '6': 'G',
                      '8': 'B', '2': 'Z'}

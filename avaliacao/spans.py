@@ -4,7 +4,7 @@ import sys, collections
 import pandas as pd
 from cacador.canon import BaseCanonica
 from cacador.pipeline import processa_documento
-from eval import DEV, HOLDOUT, alinha
+from .metrica import DEV, HOLDOUT, alinha
 
 conj = sys.argv[1] if len(sys.argv) > 1 else 'dev'
 docs = {'dev': DEV, 'holdout': HOLDOUT, 'tudo': DEV + HOLDOUT}[conj]

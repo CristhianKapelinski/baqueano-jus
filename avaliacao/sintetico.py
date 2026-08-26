@@ -7,7 +7,7 @@ import pandas as pd
 
 from cacador.canon import BaseCanonica
 from cacador.pipeline import processa_documento
-from eval import alinha
+from .metrica import alinha
 
 
 def main():

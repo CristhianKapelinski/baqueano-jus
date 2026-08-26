@@ -11,13 +11,23 @@ import subprocess
 import sys
 import time
 
+def modulo(nome, *args):
+    return [sys.executable, '-m', nome, *args]
+
+
 SUITES = [
-    ('goldenset (26 documentos distribuidos)', [sys.executable, 'eval.py', '--conjunto', 'tudo'], False),
-    ('acervo real (627 citacoes dos 1.018 registros)', [sys.executable, 'avalia_acervo.py', '--amostra', '0'], True),
-    ('sintetico proprio, semente inedita', [sys.executable, 'avalia_sintetico.py', '--dir', 'sintetico'], False),
-    ('referencia sem identificador (parafrases ineditas)', [sys.executable, 'avalia_anaforica.py'], False),
-    ('robustez a ruido de OCR', [sys.executable, 'stress.py'], True),
-    ('ablacao do vocabulario de classe', [sys.executable, 'ablacao.py'], True),
+    ('goldenset (26 documentos distribuidos)',
+     modulo('avaliacao.metrica', '--conjunto', 'tudo'), False),
+    ('acervo real (citacoes dentro dos 1.018 registros)',
+     modulo('avaliacao.acervo', '--amostra', '0'), True),
+    ('auditoria independente do link (sem o leitor de cabecalho)',
+     modulo('avaliacao.auditoria', '--fontes', '120', '--amostra', '80'), True),
+    ('sintetico proprio, semente inedita',
+     modulo('avaliacao.sintetico', '--dir', 'sintetico'), False),
+    ('referencia sem identificador (parafrases ineditas)',
+     modulo('avaliacao.anaforica'), False),
+    ('robustez a ruido de OCR', modulo('avaliacao.ruido'), True),
+    ('ablacao do vocabulario de classe', modulo('avaliacao.ablacao'), True),
 ]
 
 
@@ -29,7 +39,7 @@ def garante_sintetico():
         if (Path(pasta) / 'goldenset.csv').exists():
             continue
         print(f'    (gerando {pasta}/ - nao existia)')
-        subprocess.run([sys.executable, 'gerador.py', '--n', str(n),
+        subprocess.run([sys.executable, '-m', 'ferramentas.gerador', '--n', str(n),
                         '--semente', str(semente), '--ruido', str(ruido),
                         '--saida', pasta], check=True, capture_output=True)
 

@@ -33,11 +33,11 @@ regressão logística de 27 pesos, versionada em `cacador/calibracao.py` e
 regenerável com:
 
 ```bash
-python calibra.py
+python -m ferramentas.confianca
 ```
 
 que treina em `dados/goldenset.csv` mais os conjuntos sintéticos gerados por
-`gerador.py` (sementes fixas: 20260828 e 777).
+`ferramentas/gerador.py` (sementes fixas: 20260828 e 777).
 
 ## Envelope de execução
 
