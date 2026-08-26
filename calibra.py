@@ -1,5 +1,16 @@
 # -*- coding: utf-8 -*-
-"""Treina o modelo de confianca e escreve cacador/calibracao.py.
+"""Escolhe a estrategia de confianca e escreve cacador/calibracao.py.
+
+O bonus do desafio e medido por BRIER score. A pergunta nao e "qual modelo
+treinar", e "algum modelo bate uma constante no DADO REAL?". Hoje a resposta e
+nao, e o script decide por medicao, nao por gosto: avalia constante, taxa por
+forma, taxa por forma+classe e a regressao logistica completa, todas por
+validacao cruzada agrupada por documento sobre o goldenset - o unico dado real
+que existe -, e grava a que der o menor Brier.
+
+Com 7 erros em 228 predicoes nao ha sinal para ajustar nada mais fino que uma
+constante. Isso muda se aparecer mais dado rotulado (por exemplo, o retorno dos
+40% publicos do conjunto de teste): basta rodar de novo.
 
 A metrica do desafio da ate 10% de bonus para quem manda `confianca` bem
 ajustada: a probabilidade de que a classe - e o link, nas `real` - esteja certa.

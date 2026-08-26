@@ -14,16 +14,18 @@ ESQUEMA = '1.2'
 FONTE = 'jusbrasil'
 
 try:
-    from .calibracao import PESOS
-except ImportError:  # ainda nao rodou calibra.py
-    PESOS = None
+    from .calibracao import CONSTANTE, MODO, PESOS
+except ImportError:  # ainda nao rodou escolhe_confianca.py
+    MODO, CONSTANTE, PESOS = None, None, None
 
 
 def processa_documento(texto, base, documento_id=None):
     citacoes = []
     for span in extrai(texto):
         classe, id_canonico, conf, diag = classifica(span, base)
-        if PESOS:
+        if MODO == 'constante':
+            conf = CONSTANTE
+        elif PESOS:
             conf = sigmoide(sum(p * x for p, x in zip(PESOS, vetor(span, classe, diag))))
         c = {'inicio': span['inicio'], 'fim': span['fim'],
              'trecho': span['trecho'], 'tipo': span['tipo'],

@@ -36,6 +36,25 @@ python -m venv .venv && .venv/bin/pip install pandas numpy
 | ruído de OCR a 0,5% (o nível real do n2) | — | 95,1% |
 | metade do vocabulário de classe removido | — | 96,4% |
 
+Se a métrica oficial for **F1 macro por classe, por nível** (é o que consta da
+aba "Avaliação" do site, que chegou até mim de segunda mão — vale conferir na
+fonte), o número é:
+
+| nível | real | inventada | incompleta | **macro** |
+|---|---|---|---|---|
+| 1 (peso 1×) | 0,981 | **1,000** | 0,985 | **0,9885** |
+| 2 (peso 2×) | 0,932 | **1,000** | 0,971 | **0,9675** |
+| ponderado | | | | **0,9745** |
+
+`inventada` com **F1 = 1,000 nos dois níveis e zero `inventada→real`**. Se a
+métrica pune em dobro classificar alucinação como real — o erro mais caro em
+produção e na nota —, essa penalidade **nunca dispara**. E não é sorte:
+`inventada` só é emitida quando a busca retorna zero, e não existe caminho no
+código que a promova a `real`.
+
+Sob F1 macro, `incompleta` vale 1/3 da nota apesar de ser 29% das citações — é
+a classe onde cada ponto de recall rende mais, e é a mais frágil. Ver "Riscos".
+
 **Os quatro erros que sobram no goldenset são todos defeito do dataset** — dois
 spans do `gen_n2_010`, cujo `.txt` não bate com o gabarito, e dois links em que
 o gabarito aponta para quem *cita* o número em vez de quem *é* o processo (ver
@@ -57,6 +76,15 @@ só o dev. A primeira medição no holdout deu 75,2% contra 96,0% no dev — 21
 pontos de overfit, que caíram a ~2 depois que as correções passaram a ser de
 cobertura de forma, não remendo de caso.
 
+**`auditoria_independente.py` — segunda leitura, sem o parser.** A conferência
+de link embutida no `avalia_acervo.py` é **circular**: ela chama o mesmo
+`PARSERS` que constrói o índice, então valida *consistência*, não correção — se
+o parser lê um cabeçalho errado, auditor e resolvedor erram igual. A segunda
+leitura usa um critério diferente e não passa pelo parser: dado um número
+citado, varre o acervo atrás de todos os documentos que o contêm e mede a
+posição da primeira ocorrência em cada um; quem *é* o processo carrega o número
+mais cedo, quem apenas *cita* o traz no corpo.
+
 **`avalia_acervo.py` — o acervo como conjunto de teste.** Os 1.018 registros da
 base são milhares de citações reais em prosa jurídica de verdade, não sintética,
 e ninguém precisa anotá-las: toda ocorrência, no corpo de um acórdão, de um
@@ -64,7 +92,8 @@ número que resolve para *outro* feito do acervo é uma citação inegável. Sã
 quase 3× o goldenset. Audita também o **link**, com um teste independente do
 parser — o registro resolvido tem que ser aquele cujo próprio cabeçalho carrega
 o número citado. Foi essa suíte que achou as listas enumeradas, o sufixo de
-recurso, e `Processo nº <CNJ>` no corpo.
+recurso, e `Processo nº <CNJ>` no corpo. A conferência de link dela é
+circular — ver acima.
 
 **`gerador.py` + `avalia_sintetico.py` — gerador próprio, mais largo que o
 deles.** Reconstrói a peça sintética *de propósito* mais ampla: classes vindas
@@ -122,20 +151,44 @@ antes de consultar a base. Um diploma **nomeado** mas fora da cobertura
 (`Código de Trânsito Brasileiro`) é `inventada`, não `incompleta`: dá para
 buscar, só não existe no acervo.
 
-**Confiança** vale até 10% do escore e não é chute. `calibra.py` treina uma
-regressão logística sobre features do próprio processo de decisão — quantos
-feitos casaram, se a pista de tribunal confirmou, formato do número, ruído de
-OCR no span, e qual âncora reconheceu a citação — em ~3.600 exemplos, com
-validação cruzada agrupada por documento:
+**Confiança: uma constante, e isso foi uma decisão medida.** O bônus vale até
+10% e é pontuado por **Brier score**. Chegamos a treinar uma regressão logística
+sobre features do processo de decisão (quantos feitos casaram, se a pista de
+tribunal confirmou, ruído de OCR no span, qual âncora disparou), em ~3.600
+exemplos. Ela ficava excelente no pool de treino — e **perdia para uma
+constante no dado real**:
 
-|  | ECE | Brier | logloss | AUC |
-|---|---|---|---|---|
-| constante 0,90 | 0,0915 | 0,0168 | 0,1241 | 0,305 |
-| tabela por forma+classe | 0,0026 | 0,0080 | 0,0426 | 0,765 |
-| regressão logística | **0,0009** | 0,0081 | **0,0416** | **0,767** |
+| estratégia | Brier no goldenset |
+|---|---|
+| **constante = acurácia** | **0,02976** |
+| regressão logística | 0,03023 |
+| taxa por classe | 0,03039 |
+| taxa por forma | 0,03069 |
+| taxa por forma+classe | 0,03072 |
 
-O treino usa numpy; a inferência é um produto interno, então `run.py` continua
-só com biblioteca padrão.
+A causa é simples e não se resolve com mais dados sintéticos: **7 erros em 228
+predições reais**. A confiança nos erros era 0,985 contra 0,969 na média — o
+modelo não separava o modo de falha, porque o pool de treino era 99,2% correto
+e ele aprendeu a dizer "0,99" sempre. Toda granularidade menor foi testada por
+validação cruzada agrupada por documento e todas perderam.
+
+`escolhe_confianca.py` roda essa comparação e grava a vencedora. Hoje grava a
+acurácia medida **menos uma margem de 1 ponto** — errar por excesso de confiança
+custa mais no Brier do que errar por falta. Se aparecer mais dado real rotulado
+(o retorno dos 40% públicos, por exemplo), basta rodar de novo: o script
+recusa-se a gravar constante se algum modelo passar a ganhar.
+
+## Isolamento por documento
+
+O conjunto de teste é processado em lote. Um arquivo com encoding estranho ou
+estrutura inesperada **não pode custar o lote inteiro**: `run.py` isola cada
+documento, e uma falha vira predição vazia só para ele, com aviso no `stderr`.
+Sem isso, um único arquivo ruim derrubava o processo e o `submission.csv` nem
+era escrito — testado com 27 arquivos, um deles com byte inválido: antes saíam
+13 JSONs e nenhum CSV; agora saem 27 e o CSV completo.
+
+O `--submissao` também não depende mais do symlink `dados/` existir: se o
+conversor do organizador não estiver lá, o mesmo CSV é escrito internamente.
 
 ## Riscos conhecidos
 
@@ -150,6 +203,16 @@ só com biblioteca padrão.
   inclusive um par com texto byte a byte idêntico, onde não existe sinal.
   Adotamos ordem determinística (maior `documento_id`); acerta nos dois casos
   observados, o que com n=2 **não é evidência de nada**.
+- **Viés de auto-avaliação.** Duas das evidências mais fortes deste README são
+  medidas por populações que excluem parte do modo de falha: a conferência de
+  link do `avalia_acervo.py` usa o mesmo parser que audita (por isso existe o
+  `auditoria_independente.py`), e o conjunto sintético testa contra o *meu*
+  modelo do gerador, não contra o deles. Estão anotadas como tais no lugar onde
+  aparecem; quem ler os números precisa ler a ressalva junto.
+- **A métrica oficial ainda não foi lida na fonte.** Tudo aqui é medido contra
+  um proxy montado a partir do enunciado. O `kaggle_metric.py` citado no PDF não
+  veio no pacote, e o starter kit com o validador de formato também não. Enquanto
+  não chegarem, a otimização pode estar mirando o alvo ligeiramente errado.
 - **`DISPOSITIVOS` em `canon.py` é tabela fixa.** Os 13 registros de lei trazem
   o texto do artigo mas não dizem de qual diploma são; o mapa foi lido registro
   a registro. Vale enquanto a cobertura estiver congelada — e `BaseCanonica`

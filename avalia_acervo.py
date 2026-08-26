@@ -101,9 +101,11 @@ def main():
             cobre = [s for s in spans if s['inicio'] <= ini and fim <= s['fim'] + 2]
             if cobre:
                 cobertos += 1
-                # auditoria do LINK: a base e congelada, entao da para conferir
-                # sem gabarito - o registro resolvido tem que ser aquele cujo
-                # CABECALHO carrega o numero citado.
+                # Conferencia de CONSISTENCIA do link - nao de correcao.
+                # ATENCAO: chama o mesmo PARSERS que constroi o indice, entao e
+                # CIRCULAR: se o parser le um cabecalho errado, auditor e
+                # resolvedor erram igual e isto reporta acerto. A segunda
+                # leitura independente esta em auditoria_independente.py.
                 classe, idc, _, _ = classifica(cobre[0], base)
                 if classe != 'real':
                     res_classe += 1
@@ -119,7 +121,8 @@ def main():
     print(f'citacoes resolviveis encontradas: {total}')
     print(f'cobertas por um span do extrator: {cobertos}  ({cobertos/total:.1%})' if total else 'nada')
     if cobertos:
-        print(f'\nauditoria do link nas {cobertos} citacoes cobertas:')
+        print(f'\nconsistencia do link nas {cobertos} citacoes cobertas '
+              f'(teste CIRCULAR - ver auditoria_independente.py):')
         print(f'   resolveu para o registro cujo cabecalho tem o numero: {res_ok} '
               f'({res_ok/cobertos:.1%})')
         print(f'   nao classificou como real: {res_classe}')

@@ -21,11 +21,25 @@ SUITES = [
 ]
 
 
+def garante_sintetico():
+    """O corpus sintetico nao vai no repositorio (e derivado); gera se faltar."""
+    from pathlib import Path
+    for pasta, n, semente, ruido in (('sintetico', 200, 20260828, 0.006),
+                                     ('sintetico_dificil', 150, 777, 0.035)):
+        if (Path(pasta) / 'goldenset.csv').exists():
+            continue
+        print(f'    (gerando {pasta}/ - nao existia)')
+        subprocess.run([sys.executable, 'gerador.py', '--n', str(n),
+                        '--semente', str(semente), '--ruido', str(ruido),
+                        '--saida', pasta], check=True, capture_output=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--rapido', action='store_true',
                     help='pula as suites lentas (acervo, ruido, ablacao)')
     a = ap.parse_args()
+    garante_sintetico()
     falhou = False
     for nome, cmd, lenta in SUITES:
         if a.rapido and lenta:

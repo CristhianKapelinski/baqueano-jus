@@ -7,6 +7,7 @@ O CSV de submissao e gerado pelo proprio conversor do organizador
 (dados/json_to_submission.py), para garantir que o formato e o dele.
 """
 import argparse
+import csv
 import json
 import os
 import subprocess
@@ -15,10 +16,29 @@ import unicodedata
 from pathlib import Path
 
 from cacador.canon import BaseCanonica
-from cacador.pipeline import processa_documento
+from cacador.pipeline import ESQUEMA, processa_documento
 
 CHAVES_DO_CONTRATO = ('id', 'inicio', 'fim', 'trecho', 'tipo', 'classificacao',
                       'resolucao', 'confianca')
+
+
+def _escreve_submissao(pasta_json, destino):
+    """Mesmo CSV que dados/json_to_submission.py produz, sem depender dele."""
+    linhas = []
+    for arq in sorted(Path(pasta_json).glob('*.json')):
+        doc = json.loads(arq.read_text(encoding='utf-8'))
+        partes = []
+        for c in doc.get('citacoes', []):
+            resol = c.get('resolucao') or {}
+            idc = str(resol.get('id_canonico', '') or '').strip() or '-'
+            conf = c.get('confianca')
+            partes.append(f"{int(c['inicio'])},{int(c['fim'])},{c['classificacao']},"
+                          f"{idc},{'-' if conf is None else format(float(conf), '.4f')}")
+        linhas.append((doc.get('documento_id') or arq.stem, '|'.join(partes) or '-'))
+    with open(destino, 'w', newline='', encoding='utf-8') as f:
+        w = csv.writer(f)
+        w.writerow(['documento_id', 'citacoes'])
+        w.writerows(linhas)
 
 
 def _confere_encoding(texto, doc, arq):
@@ -29,15 +49,15 @@ def _confere_encoding(texto, doc, arq):
     entregue e exatamente texto[inicio:fim].
     """
     if texto.startswith('\ufeff'):
-        sys.exit(f'{arq}: arquivo com BOM - o desafio exige UTF-8 sem BOM')
+        raise ValueError('arquivo com BOM - o desafio exige UTF-8 sem BOM')
     if '\r' in texto:
-        sys.exit(f'{arq}: quebra CRLF - o desafio exige LF')
+        raise ValueError('quebra CRLF - o desafio exige LF')
     if unicodedata.normalize('NFC', texto) != texto:
-        sys.exit(f'{arq}: texto nao esta em NFC')
+        raise ValueError('texto nao esta em NFC')
     for c in doc['citacoes']:
         if texto[c['inicio']:c['fim']] != c['trecho']:
-            sys.exit(f"{arq}: span {c['id']} nao bate com o texto "
-                     f"({texto[c['inicio']:c['fim']]!r} != {c['trecho']!r})")
+            raise ValueError(f"span {c['id']} nao bate com o texto "
+                             f"({texto[c['inicio']:c['fim']]!r} != {c['trecho']!r})")
 
 
 def main():
@@ -56,20 +76,42 @@ def main():
     if not arquivos:
         sys.exit(f'nenhum .txt em {entrada}')
     total = 0
+    problemas = []
     for arq in arquivos:
-        texto = arq.read_text(encoding='utf-8')
-        doc = processa_documento(texto, base, documento_id=arq.stem)
-        doc['citacoes'] = [{k: c[k] for k in CHAVES_DO_CONTRATO} for c in doc['citacoes']]
-        _confere_encoding(texto, doc, arq)
+        # ISOLAMENTO POR DOCUMENTO. O conjunto de teste e processado em lote,
+        # sem ninguem por perto: um arquivo com encoding estranho ou estrutura
+        # inesperada nao pode custar o lote inteiro. Falha vira predicao vazia
+        # para aquele documento - perda de um, nao de todos.
+        try:
+            texto = arq.read_text(encoding='utf-8')
+            doc = processa_documento(texto, base, documento_id=arq.stem)
+            doc['citacoes'] = [{k: c[k] for k in CHAVES_DO_CONTRATO}
+                               for c in doc['citacoes']]
+            _confere_encoding(texto, doc, arq)
+        except Exception as e:                       # noqa: BLE001 - de proposito
+            problemas.append(f'{arq.name}: {type(e).__name__}: {e}')
+            doc = {'schema_version': ESQUEMA, 'documento_id': arq.stem, 'citacoes': []}
         (saida / f'{arq.stem}.json').write_text(
             json.dumps(doc, ensure_ascii=False, indent=1), encoding='utf-8')
         total += len(doc['citacoes'])
     print(f'{len(arquivos)} documentos, {total} citacoes -> {saida}')
+    if problemas:
+        print(f'AVISO: {len(problemas)} documento(s) sairam vazios por falha:',
+              file=sys.stderr)
+        for m in problemas:
+            print('  ' + m, file=sys.stderr)
 
     if a.submissao:
         conversor = Path(__file__).parent / 'dados' / 'json_to_submission.py'
-        subprocess.run([sys.executable, str(conversor), str(saida), a.submissao],
-                       check=True)
+        if conversor.exists():
+            subprocess.run([sys.executable, str(conversor), str(saida), a.submissao],
+                           check=True)
+        else:
+            # o conversor do organizador vem no pacote de dados; sem ele,
+            # escrevemos o mesmo CSV aqui - o formato esta no proprio script
+            _escreve_submissao(saida, a.submissao)
+            print(f'{a.submissao}: {len(arquivos)} documentos '
+                  '(conversor do organizador ausente, formato reproduzido)')
 
 
 if __name__ == '__main__':
