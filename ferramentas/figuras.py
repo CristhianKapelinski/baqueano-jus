@@ -96,11 +96,11 @@ def desenha(res):
                      'caracteres corrompidos', 'escore ponderado', xs, 0.6, 1.0)
     p += serie(r, caixa, 0.6, 1.0, TINTA, 'sistema atual')
     x0, y0, x1, y1 = caixa
-    xop = x0 + (x1 - x0) * 1 / (len(r) - 1)
+    xop = x0 + (x1 - x0) * 2 / (len(r) - 1)  # 1%, a taxa medida
     p.append(f'<line x1="{xop:.1f}" y1="{y1}" x2="{xop:.1f}" y2="{y0}" '
              f'stroke="{ACENTO}" stroke-width="1.2" stroke-dasharray="3 3"/>')
     p.append(f'<text x="{xop + 6:.1f}" y="{y1 + 12}" font-size="10" fill="{ACENTO}" '
-             f'font-family="sans-serif">ruído real do nível 2</text>')
+             f'font-family="sans-serif">ruído medido no nível 2</text>')
     open('docs/ruido.svg', 'w').write(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{LARGURA}" height="{ALTURA}" '
         f'viewBox="0 0 {LARGURA} {ALTURA}">' + ''.join(p) + '</svg>')
