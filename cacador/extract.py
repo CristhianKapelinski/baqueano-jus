@@ -79,7 +79,7 @@ ORDINAL_PREFIXO = (r'(?:Primeir|Segund|Terceir|Quart|Quint|Sext)[oa]s?\s+')
 _CLASSE_ALT = '|'.join(CLASSES)
 # Uma cadeia de classes: 'EDcl nos EDcl no AgInt no Agravo em Recurso Especial'
 _CONECTOR = r'(?:\s*(?:-|no|na|nos|nas|em|de|do|da)\s*)'
-_MARCA_FIM = r'(?:\s*n\s*[.ºo°]{1,2}\s*|\s*n\.\s*|\s+)?\s*$'
+_MARCA_FIM = r'(?:\s*[nN]\s*[.ºo°O]{1,2}\s*|\s*[nN]\.\s*|\s+)?\s*$'
 CADEIA_CLASSE = re.compile(
     r'(?:' + ORDINAL_PREFIXO + r')?'
     r"(?:(?:" + _CLASSE_ALT + r")\.?['’]?s?" + _CONECTOR + r"?){1,6}" + _MARCA_FIM, re.I)
@@ -114,6 +114,16 @@ SIGLA_NAO_E_CLASSE = re.compile(
     r'n|no|de|da|do|em|na|res|resolu[çc][ãa]o|portaria|of[íi]cio|memorial|'
     r'eventos?|fl|doc|id|seq|anexos?|pe[çc]a|apenso|tema|item|inciso|'
     r'protocolo|parecer|peti[çc][ãa]o inicial|' + UFS.lower() + r')$', re.I)
+
+# 'PARECER JURIDICO N 212/2023' e numeracao de documento administrativo, nao
+# de processo: qualquer sigla vinda depois de uma dessas palavras nao e classe.
+DOCUMENTO_NAO_E_FEITO = re.compile(
+    r'\b(?:parecer|of[íi]cio|memorando|memorial|nota|portaria|resolu[çc][ãa]o|'
+    r'circular|instru[çc][ãa]o|protocolo|edital|aviso|comunicado|laudo|'
+    r'certid[ãa]o|ata|contrato|conv[êe]nio|termo|requerimento|despacho)\b'
+    # so o que vem COLADO: a palavra do documento seguida de ate duas palavras
+    # em caixa alta. 'Recurso de Oficio a este Tribunal (...' nao conta.
+    r'\s+(?:[A-ZÀ-Ú][\wÀ-ÿ]*\s+){0,2}$', re.I)
 
 # 'Processo n TST- ED - E-ED-RR-41200-79...': o prefixo TST- carrega siglas
 # encadeadas que nao valem a pena enumerar uma a uma.
@@ -228,20 +238,50 @@ VAGA_TRIB_ANO_REL = re.compile(
     re.I)
 # '<Classe> de 2022, Rel. Min. Alexandre De Moraes'
 # '<Classe por extenso> do STF, de 2020, Rel. Min. Celso De Mello'
-VAGA_CLASSE_ANO_REL = re.compile(
-    r'\b(' + _CLASSE_ALT + r')\s*'
+# Nucleo da referencia vaga datada: '(do STJ,) de 2025, Rel. Min. Fulano'. E o
+# ano mais o relator que identificam a forma; a classe a esquerda e decoracao,
+# e por isso NAO sai de lista fechada - anda-se para tras sobre os tokens
+# capitalizados, o que cobre 'EAREsp', 'IPM', 'Apelacao (AP)' e o que vier.
+NUCLEO_VAGO_DATADO = re.compile(
     r'(?:d[oe]\s+(' + '|'.join(TRIBUNAIS) + r')\s*,?\s*)?'
     r'de\s*(\d{4})\s*,?\s*'
     r'(?:Rel\.?|relatoria|relatad[oa])\s*(?:Min\.?)?\s*d?[ceo]?\s*(' + _NOME + r')',
     re.I)
+TOKEN_DE_CLASSE = re.compile(r"[A-ZÀ-Ú][\wÀ-ÿ.()'’-]*$")
 
-# Referencia anaforica: nucleo juridico + cauda qualificadora SEM identificador.
-_NUCLEO = (r'normas?|legisla[çc][ãa]o|leis?\b|dispositivos?|artigos?|preceitos?|'
-           r'jurisprud[\wÀ-ÿ]{0,4}ia|precedentes?|ac[óo]rd[ãa]o|julgados?|arestos?|'
-           r'entend[\wÀ-ÿ]{0,6}ento|verbete|s[úu]mula|orienta[çc][ãa]o')
+
+def _estende_classe_a_esquerda(texto, ini, limite=6):
+    """Anda para tras sobre tokens capitalizados, que formam o nome da classe."""
+    pos = ini
+    for _ in range(limite):
+        j = pos
+        while j > 0 and texto[j - 1] in ' \t':
+            j -= 1
+        if j == 0 or j == pos:
+            break
+        k = j
+        while k > 0 and texto[k - 1] not in ' \t\n':
+            k -= 1
+        tok = texto[k:j]
+        if not tok or tok[-1] in '.;:!?' and len(tok) > 1 and tok[:-1].islower():
+            break
+        if not TOKEN_DE_CLASSE.match(tok):
+            break
+        pos = k
+    return pos
+
+
+# Nucleo juridico de uma referencia anaforica, e a ancora que ela usa para
+# apontar para algo. A vista de busca ja tira o acento, entao basta a forma
+# simples; o sufixo tolerante ('jurisprud[..]ia') absorve corrupcao de OCR.
+_NUCLEO = (r'normas?|legislacao|leis?\b|dispositivos?|artigos?|preceitos?|'
+           r'jurisprud[\wÀ-ÿ]{0,4}ia|precedentes?|acordao|julgados?|arestos?|'
+           r'entend[\wÀ-ÿ]{0,6}ento|verbete|sumula|orientacao')
 _ANCORA = (r'reg[êe]ncia|invocad|repetitiv|sumulad|sumular|correspondente|'
            r'mat[ée]ria|esp[ée]cie|corte|casa|turma|se[çc][ãa]o|caso|'
-           r'tribuna(?:l|is)|superior(?:es)?|origem|repercuss[ãa]o')
+           r'tribuna(?:l|is)|superior(?:es)?|origem|repercuss[ãa]o|'
+           r'regencia|materia|especie|secao|plenario|plen[áa]rio|competente')
+
 # Uma referencia sem identificador so e citacao quando e um SINTAGMA NOMINAL
 # fechado - termina em fronteira de oracao e nao contem verbo finito. E o que
 # separa 'jurisprudencia pacifica desta Corte' (citacao) de 'a orientacao dos
@@ -261,6 +301,25 @@ _VERBO_FINITO = re.compile(
     r'revela|revelam|demonstra|demonstram|confirma|confirmam|afasta|afastam|'
     r'reconhece|reconhecem|firma|firmam|resulta|resultam|decorre|decorrem|'
     r'importa|importam|enseja|ensejam|assenta|assentam|dispoe|dispoem)\b')
+
+
+# Vista de busca: troca acento e confusao de OCR por letra simples, caractere a
+# caractere - o comprimento nao muda, entao um span achado na vista tem as
+# mesmas posicoes no texto original. Serve para 'ãrtigo', 'ãcórdão',
+# 'jurisprudêneia' casarem sem escrever cada variante na expressao.
+_VISTA = str.maketrans({
+    'á': 'a', 'à': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a',
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+    'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
+    'ó': 'o', 'ò': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
+    'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u', 'ç': 'c',
+    'Á': 'A', 'À': 'A', 'Â': 'A', 'Ã': 'A', 'É': 'E', 'Ê': 'E', 'Í': 'I',
+    'Ó': 'O', 'Ô': 'O', 'Õ': 'O', 'Ú': 'U', 'Ç': 'C',
+})
+
+
+def vista_de_busca(texto):
+    return texto.translate(_VISTA)
 
 
 def _norm(s):
@@ -303,6 +362,7 @@ def _add(spans, texto, ini, fim, tipo, forma, **extra):
 def extrai(texto):
     """Todos os spans de citacao do documento."""
     spans = []
+    vista = vista_de_busca(texto)
     corpo_comeca = _fim_do_cabecalho(texto)
 
     # 1. sumulas
@@ -339,7 +399,8 @@ def extrai(texto):
             c = ANCORA_PROCESSO.search(esquerda)
         if c is None:
             c = ANCORA_SIGLA.search(esquerda)
-            if c and SIGLA_NAO_E_CLASSE.match(c.group(1).strip(' .-')):
+            if c and (SIGLA_NAO_E_CLASSE.match(c.group(1).strip(' .-'))
+                      or DOCUMENTO_NAO_E_FEITO.search(esquerda[-70:])):
                 c = None
         if not c:
             continue
@@ -358,14 +419,15 @@ def extrai(texto):
     spans += _lista_enumerada(texto, [s for s in spans if s['forma'] == 'numerada'])
 
     # 4. referencias vagas com tribunal/ano/relator
-    for rx, forma in ((VAGA_TRIB_ANO_REL, 'vaga_trib_ano_rel'),
-                      (VAGA_CLASSE_ANO_REL, 'vaga_classe_ano_rel')):
-        for m in rx.finditer(texto):
-            _add(spans, texto, m.start(), m.end(), 'jurisprudencia', forma)
+    for m in VAGA_TRIB_ANO_REL.finditer(vista):
+        _add(spans, texto, m.start(), m.end(), 'jurisprudencia', 'vaga_trib_ano_rel')
+    for m in NUCLEO_VAGO_DATADO.finditer(vista):
+        ini = _estende_classe_a_esquerda(texto, m.start())
+        _add(spans, texto, ini, m.end(), 'jurisprudencia', 'vaga_classe_ano_rel')
 
     # 5. referencias anaforicas (sem qualquer identificador)
-    for m in VAGA_ANAFORICA.finditer(texto):
-        t = m.group()
+    for m in VAGA_ANAFORICA.finditer(vista):
+        t = texto[m.start():m.end()]
         if any(ch.isdigit() for ch in t):
             continue
         if '\n\n' in t:

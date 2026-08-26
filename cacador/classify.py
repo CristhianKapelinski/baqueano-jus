@@ -24,6 +24,12 @@ CLASSE_TRIBUNAL = [
 # Segmento J do numero CNJ (NNNNNNN-DD.AAAA.J.TR.OOOO): o ramo da Justica.
 CNJ_RAMO = {'1': 'STF', '3': 'STJ', '5': 'TST', '6': 'TSE', '7': 'STM'}
 
+# Um diploma com nome proprio e buscavel, ainda que fora da cobertura.
+DIPLOMA_NOMEADO = re.compile(
+    r'\b(codigo|lei|leis|estatuto|consolidacao|constituicao|decreto|'
+    r'regimento|convencao|conven[çc][ãa]o|emenda|medida provisoria|'
+    r'ato das disposicoes)\b')
+
 
 def _tribunais_da_classe(trecho):
     c = texto_canonico(trecho)
@@ -72,6 +78,11 @@ def classifica(span, base):
             return 'incompleta', None, 0.85
         codigo = codigo_do_diploma(span['diploma_txt'])
         if codigo is None:
+            # o diploma tem nome proprio ('Codigo de Transito Brasileiro',
+            # 'Estatuto do Idoso'): da para buscar, e nao esta na cobertura -
+            # logo 'inventada'. So e 'incompleta' quando nada foi nomeado.
+            if DIPLOMA_NOMEADO.search(texto_canonico(span['diploma_txt'])):
+                return 'inventada', None, 0.75
             return 'incompleta', None, 0.70
         regs = base.dispositivo(codigo, artigo)
         if len(regs) == 1:
