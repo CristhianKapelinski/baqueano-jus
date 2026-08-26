@@ -1,0 +1,5 @@
+# run.py (a submissao) NAO precisa de nada: usa so a biblioteca padrao.
+# As dependencias abaixo sao apenas para as suites de avaliacao e para
+# retreinar a calibracao.
+pandas>=2.0
+numpy>=1.24

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """Gerado por calibra.py - NAO editar a mao."""
 
-# Pesos da regressao logistica, na ordem de cacador.features.NOMES.
+# Pesos da regressao logistica (logloss), na ordem de
+# cacador.features.NOMES.
 PESOS = [
      2.285323,  # vies
      0.148343,  # forma=numerada

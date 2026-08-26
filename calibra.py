@@ -57,13 +57,23 @@ def amostras(base, dir_txt, csv, id_str=False):
     return np.array(X, float), np.array(y, float), np.array(grupos)
 
 
-def treina(X, y, l2=1.0, passos=4000, lr=0.5):
+def treina(X, y, l2=1.0, passos=4000, lr=0.5, alvo='brier'):
+    """Regressao logistica, minimizando log-loss ou Brier.
+
+    O bonus do desafio e medido por BRIER score, entao treinar direto nele e o
+    alinhamento certo entre o que se otimiza e o que se pontua. Brier e regra
+    de pontuacao propria: premia calibracao E discriminacao ao mesmo tempo.
+    """
     w = np.zeros(X.shape[1])
     n = len(y)
     for _ in range(passos):
-        z = X @ w
-        p = 1.0 / (1.0 + np.exp(-np.clip(z, -30, 30)))
-        grad = X.T @ (p - y) / n + l2 * np.r_[0.0, w[1:]] / n
+        p = 1.0 / (1.0 + np.exp(-np.clip(X @ w, -30, 30)))
+        if alvo == 'brier':
+            # d/dw media((p-y)^2) = media(2 (p-y) p (1-p) x)
+            resid = 2.0 * (p - y) * p * (1.0 - p)
+        else:
+            resid = p - y
+        grad = X.T @ resid / n + l2 * np.r_[0.0, w[1:]] / n
         w -= lr * grad
     return w
 
@@ -103,6 +113,7 @@ def main():
     ap.add_argument('--sintetico', nargs='*',
                     default=['sintetico', 'sintetico_dificil'])
     ap.add_argument('--l2', type=float, default=1.0)
+    ap.add_argument('--alvo', default='brier', choices=['brier', 'logloss'])
     a = ap.parse_args()
     base = BaseCanonica()
 
@@ -122,29 +133,39 @@ def main():
     docs = np.unique(grupos)
     rng = np.random.default_rng(0); rng.shuffle(docs)
     folds = np.array_split(docs, 5)
-    p_cv = np.zeros(len(y))
-    for f in folds:
-        teste = np.isin(grupos, f)
-        w = treina(X[~teste], y[~teste], a.l2)
-        p_cv[teste] = 1.0 / (1.0 + np.exp(-np.clip(X[teste] @ w, -30, 30)))
+    p_cv = {}
+    for alvo in ('logloss', 'brier'):
+        p = np.zeros(len(y))
+        for f in folds:
+            teste = np.isin(grupos, f)
+            w = treina(X[~teste], y[~teste], a.l2, alvo=alvo, lr=2.0 if alvo == 'brier' else 0.5,
+                       passos=8000 if alvo == 'brier' else 4000)
+            p[teste] = 1.0 / (1.0 + np.exp(-np.clip(X[teste] @ w, -30, 30)))
+        p_cv[alvo] = p
 
     print('\nvalidacao cruzada por documento (5 folds):')
     relatorio('constante 0,90', np.full(len(y), 0.90), y)
     relatorio('tabela por forma+classe', tabela_por_forma(X, y), y)
-    relatorio('regressao logistica', p_cv, y)
+    relatorio('logistica (log-loss)', p_cv['logloss'], y)
+    relatorio('logistica (Brier)', p_cv['brier'], y)
+    melhor = min(p_cv, key=lambda k: np.mean((p_cv[k] - y) ** 2))
+    print(f'   -> menor Brier: treino por {melhor}')
 
-    print('\ncurva de confiabilidade (modelo):')
+    print('\ncurva de confiabilidade (modelo escolhido):')
+    pm = p_cv[melhor]
     for k in range(10):
         lo, hi = k / 10, (k + 1) / 10
-        m = (p_cv >= lo) & (p_cv < hi if k < 9 else p_cv <= hi)
+        m = (pm >= lo) & (pm < hi if k < 9 else pm <= hi)
         if m.sum():
             print(f'   [{lo:.1f},{hi:.1f})  n={m.sum():5d}  '
-                  f'confianca {p_cv[m].mean():.3f}  acerto {y[m].mean():.3f}')
+                  f'confianca {pm[m].mean():.3f}  acerto {y[m].mean():.3f}')
 
-    w = treina(X, y, a.l2)
+    w = treina(X, y, a.l2, alvo=melhor, lr=2.0 if melhor == 'brier' else 0.5,
+               passos=8000 if melhor == 'brier' else 4000)
     corpo = ('# -*- coding: utf-8 -*-\n'
              '"""Gerado por calibra.py - NAO editar a mao."""\n\n'
-             '# Pesos da regressao logistica, na ordem de cacador.features.NOMES.\n'
+             f'# Pesos da regressao logistica ({melhor}), na ordem de\n'
+             '# cacador.features.NOMES.\n'
              'PESOS = [\n'
              + ''.join(f'    {v: .6f},  # {n}\n' for v, n in zip(w, NOMES))
              + ']\n')
