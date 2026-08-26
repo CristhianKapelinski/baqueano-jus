@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+saida_json/
+submission.csv
+dados
