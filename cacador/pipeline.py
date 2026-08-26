@@ -2,19 +2,20 @@
 """Documento .txt -> JSON do Contrato de Entrada e Saida."""
 from .classify import classifica
 from .extract import extrai
+from .features import sigmoide, vetor
 
 try:
-    from .calibracao import CONFIANCA, PADRAO
+    from .calibracao import PESOS
 except ImportError:  # ainda nao rodou calibra.py
-    CONFIANCA, PADRAO = {}, None
+    PESOS = None
 
 
 def processa_documento(texto, base, documento_id=None):
     citacoes = []
     for span in extrai(texto):
-        classe, id_canonico, conf = classifica(span, base)
-        # a confianca empirica, quando existe, vale mais que a heuristica
-        conf = CONFIANCA.get((span['forma'], classe), conf if PADRAO is None else conf)
+        classe, id_canonico, conf, diag = classifica(span, base)
+        if PESOS:
+            conf = sigmoide(sum(p * x for p, x in zip(PESOS, vetor(span, classe, diag))))
         c = {'inicio': span['inicio'], 'fim': span['fim'],
              'trecho': span['trecho'], 'tipo': span['tipo'],
              'classificacao': classe, 'confianca': round(conf, 4),

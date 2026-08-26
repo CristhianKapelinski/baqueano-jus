@@ -60,54 +60,66 @@ def _tribunal_explicito(trecho):
 
 
 def classifica(span, base):
-    """Devolve (classe, id_canonico|None, confianca)."""
+    """Devolve (classe, id_canonico|None, confianca, diagnostico).
+
+    O diagnostico carrega o que o modelo de confianca precisa saber e que so
+    esta disponivel aqui: quantos feitos casaram, se havia pista de tribunal e
+    se ela confirmou, e se o diploma foi reconhecido.
+    """
     forma = span['forma']
+    diag = {}
 
     if forma == 'sumula':
         regs = base.sumula(span['numero'], span.get('tribunal'),
                            span.get('vinculante', False))
+        diag['n_feitos'] = len(regs)
         if len(regs) == 1:
-            return 'real', str(regs[0]['id']), 0.95
+            return 'real', str(regs[0]['id']), 0.95, diag
         if not regs:
-            return 'inventada', None, 0.90
-        return 'incompleta', None, 0.60
+            return 'inventada', None, 0.90, diag
+        return 'incompleta', None, 0.60, diag
 
     if forma == 'artigo':
         artigo = str(span['artigo']).rstrip('º°o').strip()
         if artigo.lower() == 'correspondente':
-            return 'incompleta', None, 0.85
+            return 'incompleta', None, 0.85, diag
         codigo = codigo_do_diploma(span['diploma_txt'])
         if codigo is None:
             # o diploma tem nome proprio ('Codigo de Transito Brasileiro',
             # 'Estatuto do Idoso'): da para buscar, e nao esta na cobertura -
             # logo 'inventada'. So e 'incompleta' quando nada foi nomeado.
             if DIPLOMA_NOMEADO.search(texto_canonico(span['diploma_txt'])):
-                return 'inventada', None, 0.75
-            return 'incompleta', None, 0.70
+                return 'inventada', None, 0.75, diag
+            return 'incompleta', None, 0.70, diag
+        diag['diploma'] = codigo
         regs = base.dispositivo(codigo, artigo)
+        diag['n_feitos'] = len(regs)
         if len(regs) == 1:
-            return 'real', str(regs[0]['id']), 0.92
-        return 'inventada', None, 0.85
+            return 'real', str(regs[0]['id']), 0.92, diag
+        return 'inventada', None, 0.85, diag
 
     if forma == 'numerada':
         # numero herdado de uma enumeracao carrega a classe do primeiro item
         contexto = span['trecho'] + ' ' + span.get('classe_herdada', '')
         cadeias = cadeias_de_digitos(span['trecho'])
         if not cadeias:
-            return 'incompleta', None, 0.60
+            return 'incompleta', None, 0.60, diag
         pistas = (_tribunais_da_classe(contexto)
                   | _tribunais_do_cnj(cadeias)
                   | _tribunal_explicito(contexto))
+        diag['pistas'] = sorted(pistas)
         feitos = base.feitos_por_numero(cadeias, pistas) if pistas else []
+        diag['pista_confere'] = bool(feitos)
         if not feitos:
             # a pista de tribunal pode estar errada; tenta sem ela antes de
             # declarar inexistente
             feitos = base.feitos_por_numero(cadeias)
+        diag['n_feitos'] = len(feitos)
         if len(feitos) == 1:
-            return 'real', str(feitos[0].registros[0]['id']), 0.90
+            return 'real', str(feitos[0].registros[0]['id']), 0.90, diag
         if not feitos:
-            return 'inventada', None, 0.85
-        return 'incompleta', None, 0.55
+            return 'inventada', None, 0.85, diag
+        return 'incompleta', None, 0.55, diag
 
     # referencias vagas
-    return 'incompleta', None, 0.80
+    return 'incompleta', None, 0.80, diag

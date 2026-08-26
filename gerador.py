@@ -235,7 +235,7 @@ def suja(texto, taxa, rng):
     return ''.join(saida)
 
 
-def gera_documento(base, rng, relatores, nivel):
+def gera_documento(base, rng, relatores, nivel, ruido=0.006):
     trib_peca = rng.choice(list(CLASSES_POR_TRIBUNAL))
     cnj_autos = ''.join(rng.choice('0123456789') for _ in range(20))
     partes = [
@@ -287,7 +287,7 @@ def gera_documento(base, rng, relatores, nivel):
     for c in gabarito:                      # confere que o span bate mesmo
         assert texto[c['inicio']:c['fim']] == c['trecho'], (c, texto[c['inicio']:c['fim']])
     if nivel == 2:
-        texto = suja(texto, 0.006, rng)
+        texto = suja(texto, ruido, rng)
         for c in gabarito:
             c['trecho'] = texto[c['inicio']:c['fim']]
     return texto, gabarito
@@ -298,6 +298,8 @@ def main():
     ap.add_argument('--n', type=int, default=200)
     ap.add_argument('--semente', type=int, default=42)
     ap.add_argument('--saida', default='sintetico')
+    ap.add_argument('--ruido', type=float, default=0.006,
+                    help='taxa de ruido de OCR nos documentos de nivel 2')
     a = ap.parse_args()
     base = BaseCanonica()
     relatores = [re.sub(r'^(Min\.?|Ministr[oa])\s+', '', r[0]).strip()
@@ -308,7 +310,7 @@ def main():
     linhas = []
     for i in range(a.n):
         nivel = 1 if i % 2 == 0 else 2
-        texto, gab = gera_documento(base, rng, relatores, nivel)
+        texto, gab = gera_documento(base, rng, relatores, nivel, a.ruido)
         nome = f'syn_n{nivel}_{i:04d}'
         (d / 'txt' / f'{nome}.txt').write_text(texto, encoding='utf-8')
         for k, c in enumerate(gab, 1):

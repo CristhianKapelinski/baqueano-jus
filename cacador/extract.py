@@ -393,12 +393,18 @@ def extrai(texto):
         d = digitos_de(texto[ini:fim])
         if len(d) == 4 and 1900 <= int(d) <= 2100:
             continue  # ano solto ('Rcl de 2021'), nao numero de processo
-        c = (CADEIA_CLASSE.search(esquerda) or ANCORA_TST.search(esquerda)
-             or ANCORA_NUCLEO.search(esquerda))
-        if c is None and ini >= corpo_comeca and len(digitos_de(m.group())) >= 14:
-            c = ANCORA_PROCESSO.search(esquerda)
+        # qual ancora reconheceu a citacao - vira feature de confianca, porque
+        # a lista fechada e mais segura que a sigla generica
+        ancora = 'classe'
+        c = CADEIA_CLASSE.search(esquerda)
         if c is None:
-            c = ANCORA_SIGLA.search(esquerda)
+            c, ancora = ANCORA_TST.search(esquerda), 'tst'
+        if c is None:
+            c, ancora = ANCORA_NUCLEO.search(esquerda), 'nucleo'
+        if c is None and ini >= corpo_comeca and len(digitos_de(m.group())) >= 14:
+            c, ancora = ANCORA_PROCESSO.search(esquerda), 'processo'
+        if c is None:
+            c, ancora = ANCORA_SIGLA.search(esquerda), 'sigla'
             if c and (SIGLA_NAO_E_CLASSE.match(c.group(1).strip(' .-'))
                       or DOCUMENTO_NAO_E_FEITO.search(esquerda[-70:])):
                 c = None
@@ -411,7 +417,8 @@ def extrai(texto):
         rg = SUFIXO_REPERCUSSAO.match(texto, fim)
         if rg:
             fim = rg.end()
-        _add(spans, texto, ini_classe, fim, 'jurisprudencia', 'numerada')
+        _add(spans, texto, ini_classe, fim, 'jurisprudencia', 'numerada',
+             ancora=ancora)
 
     # 3b. listas enumeradas: 'Rcls 60.699 e 60.703', 'Rcl's 55.624-AgR/RO,
     # 60.681-AgR/RO, 60.682-AgR/RO'. Uma classe governa varios numeros; so o
