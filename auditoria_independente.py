@@ -115,9 +115,14 @@ def main():
         if not pos:
             sem_dado += 1
             continue
-        vencedor = min(pos, key=pos.get)
+        melhor = min(pos.values())
+        # empate = dois registros do MESMO feito. O enunciado diz que acertar
+        # qualquer id do conjunto conta como acerto pleno, entao empate e
+        # concordancia, nao divergencia.
+        vencedores = {d for d, p in pos.items() if p == melhor}
+        vencedor = min(vencedores)
         resolvido = doc_por_id.get(idc)
-        if vencedor == resolvido:
+        if resolvido in vencedores:
             concorda += 1
         else:
             discorda += 1

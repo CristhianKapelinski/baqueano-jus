@@ -201,12 +201,48 @@ def codigo_do_diploma(trecho):
 Feito = collections.namedtuple('Feito', 'chave registros')
 
 
-def _posicao_no_cabecalho(texto, frase, janela):
-    """O numero aparece no comeco do documento - logo, o feito e este."""
-    digitos_alvo = frase.replace(' ', '')
-    cabeca = texto[:janela]
-    corrido = re.sub(r'[^0-9]', '', cabeca)
-    return digitos_alvo in corrido or digitos_alvo.lstrip('0') in corrido
+# Numero de processo no texto, para a checagem posicional. Data e paginacao
+# ficam de fora - elas vem antes do identificador e o mascarariam.
+_LIXO_POSICIONAL = re.compile(
+    r'\d{2}/\d{2}/\d{4}|P[áa]gina\s+\d+\s+de\s+\d+|\b(?:19|20)\d{2}\b')
+_NUM_POSICIONAL = re.compile(r'\d[\d.\s-]{3,30}\d')
+# No TST e no STM o numero do feito vem na linha de autuacao, nao no cabecalho.
+_AUTUACAO = re.compile(r'autos\s+de\b|em\s+que\s+(?:é|e|s[ãa]o)\b', re.I)
+
+
+def _posicao_no_cabecalho(texto, frase, janela, tribunal=None):
+    """O numero e o do PROPRIO feito - nao o de um processo que ele cita.
+
+    Aparecer cedo nao basta. A ementa comeca logo depois do cabecalho e cita
+    outros processos: no STF, 'AG.REG. NA RECLAMACAO 66.755' menciona o RE
+    958.252 no caractere 644, dentro de qualquer janela generosa. Por isso o
+    criterio e mais duro:
+
+    * STF/STJ/TSE - o numero tem que ser o PRIMEIRO numero de processo do
+      documento (datas e paginacao descontadas);
+    * TST/STM - tem que estar junto da linha de autuacao ('estes autos de ...',
+      '..., em que e Agravante'), que e onde mora o numero do feito.
+    """
+    alvo = frase.replace(' ', '')
+    sem_zero = alvo.lstrip('0')
+    cabeca = _LIXO_POSICIONAL.sub(' ', texto[:janela])
+
+    if tribunal in ('TST', 'STM'):
+        for m in _NUM_POSICIONAL.finditer(cabeca):
+            d = re.sub(r'\D', '', m.group())
+            if d in (alvo, sem_zero) or d.lstrip('0') == sem_zero:
+                volta = cabeca[max(0, m.start() - 130):m.start()]
+                adiante = cabeca[m.end():m.end() + 160]
+                if _AUTUACAO.search(volta) or _AUTUACAO.search(adiante):
+                    return True
+        return False
+
+    for m in _NUM_POSICIONAL.finditer(cabeca):
+        d = re.sub(r'\D', '', m.group())
+        if len(d) < 4:
+            continue
+        return d in (alvo, sem_zero) or d.lstrip('0') == sem_zero
+    return False
 
 
 class BaseCanonica:
@@ -350,7 +386,7 @@ class BaseCanonica:
                     if tribunais and trib not in tribunais:
                         continue
                     lim = janela or self.JANELA_CABECALHO.get(trib, 700)
-                    if _posicao_no_cabecalho(texto, frase, lim):
+                    if _posicao_no_cabecalho(texto, frase, lim, trib):
                         achados.setdefault((d.lstrip('0') or d, trib), []).append(
                             {'documento_id': did, 'id': i, 'tribunal': trib})
         return [Feito(k, v) for k, v in achados.items()]

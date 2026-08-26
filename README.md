@@ -140,10 +140,18 @@ O número sai do **cabeçalho** do acórdão, com um parser por tribunal: é o q
 separa o registro de quem apenas o cita. No TST a âncora é a linha de autuação
 (`estes autos de … nº TST-…, em que é Agravante`), não a primeira ocorrência de
 `TST-`. Quando o índice falha, uma **rede de segurança por FTS** procura o
-número e aceita só o documento em que ele aparece na região do cabeçalho —
-janela por tribunal, porque no TST e no STM a autuação fica a milhares de
-caracteres do início. Sabotando o parser de cabeçalho de propósito: com metade
-dos registros quebrados, 92,5% das citações ainda resolvem.
+número — e é **deliberadamente conservadora**, porque um `real` falso é o erro
+mais caro da métrica. Aparecer cedo não basta: a ementa começa logo depois do
+cabeçalho e cita outros processos. No STF/STJ/TSE o número precisa ser o
+**primeiro** número de processo do documento; no TST e no STM, precisa estar
+junto da linha de autuação. A primeira versão usava só uma janela de 700
+caracteres e a segunda leitura independente pegou o resultado disso: a
+`AG.REG. NA RECLAMAÇÃO 66.755` cita o RE 958.252 no caractere 644, e a rede
+aceitava. Sabotando o parser de propósito, com metade dos registros quebrados
+64,5% das citações ainda resolvem — menos que os 92,5% da versão frouxa, e a
+troca é intencional: precisão em `real` vale mais que taxa de recuperação de
+uma falha que hoje não existe (o parser tem 0 erros e 517/517 de consistência
+CNJ).
 
 **Classificação** é a tabela do §5, sem invenção: 1 feito → `real`; 0 →
 `inventada`; 2+ → `incompleta`; sem identificador suficiente → `incompleta`
