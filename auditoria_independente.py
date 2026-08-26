@@ -76,6 +76,8 @@ def main():
     ap.add_argument('--amostra', type=int, default=60,
                     help='quantas citacoes auditar (a varredura e cara)')
     ap.add_argument('--semente', type=int, default=3)
+    ap.add_argument('--fontes', type=int, default=150,
+                    help='quantos acordaos varrer atras de citacoes')
     a = ap.parse_args()
     base = BaseCanonica()
     linhas = base.con.execute(
@@ -85,9 +87,12 @@ def main():
     id_por_doc = {l[0]: l[1] for l in linhas}
     doc_por_id = {l[1]: l[0] for l in linhas}
 
-    # colhe citacoes reais do corpo dos acordaos
+    # colhe citacoes reais do corpo dos acordaos (amostra das fontes primeiro:
+    # varrer os 1.000 inteiros custa minutos e nao muda a conclusao)
+    rng0 = random.Random(a.semente)
+    fontes = rng0.sample(linhas, min(a.fontes, len(linhas)))
     casos = []
-    for did, i, trib, texto in linhas:
+    for did, i, trib, texto in fontes:
         for s in extrai(texto):
             if s['forma'] != 'numerada':
                 continue

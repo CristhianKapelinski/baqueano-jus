@@ -281,7 +281,7 @@ def _estende_classe_a_esquerda(texto, ini, limite=6):
 # apontar para algo. A vista de busca ja tira o acento, entao basta a forma
 # simples; o sufixo tolerante ('jurisprud[..]ia') absorve corrupcao de OCR.
 _NUCLEO = (r'normas?|legislacao|leis?\b|dispositivos?|disposicoes|artigos?|'
-           r'preceitos?|comandos?|regras?|textos?|diretrizes?|'
+           r'preceitos?|comandos?|regras?|textos?|diretriz(?:es)?|'
            r'teses?|enunciados?|verbetes?|sumulas?|orientacao|orientacoes|'
            r'jurisprud[\wÀ-ÿ]{0,4}ia|precedentes?|acordaos?|julgados?|arestos?|'
            r'entend[\wÀ-ÿ]{0,6}entos?')
@@ -312,6 +312,12 @@ PISTA_CITACAO = re.compile(
     r'serve|guarda|colhe|extrai)'
     r'(?:(?!\n\s*\n)[^.;!?]){0,50}$', re.I)
 
+# Onde cada nucleo comeca. Precisamos disto porque `finditer` nao sobrepoe: se
+# um sintagma externo casa e e rejeitado por um filtro, ele ESCONDE um sintagma
+# interno valido ('A tese encontra respaldo em a diretriz jurisprudencial
+# predominante' engolia 'diretriz ...'). Varremos nucleo a nucleo.
+INICIO_NUCLEO = re.compile(
+    r'\b(?:recentes?\s+|reiterados?\s+|iterativos?\s+)?(?:' + _NUCLEO + r')\b', re.I)
 VAGA_ANAFORICA = re.compile(
     r'\b(?:recentes?\s+|reiterados?\s+|iterativos?\s+)?'
     r'(?:' + _NUCLEO + r')'
@@ -325,16 +331,18 @@ _TEM_ANCORA = re.compile(_ANCORA, re.I)
 # Verbo finito dentro do sintagma: sinal de que a frase seguiu adiante e o
 # trecho nao e mais uma referencia, e sim uma oracao.
 _VERBO_FINITO = re.compile(
-    r'\b(?:e|sao|foi|foram|esta|estao|ha|tem|deve|devem|conduz|conduzem|'
+    r'\b(?:sao|foi|foram|ha|tem|deve|devem|conduz|conduzem|'
     r'aponta|apontam|autoriza|autorizam|impoe|impoem|permite|permitem|'
     r'revela|revelam|demonstra|demonstram|confirma|confirmam|afasta|afastam|'
     r'reconhece|reconhecem|firma|firmam|resulta|resultam|decorre|decorrem|'
     r'importa|importam|enseja|ensejam|assenta|assentam|dispoe|dispoem)\b')
+# 'e'/'esta' so sao verbo COM acento; sem ele sao conjuncao e demonstrativo.
+# Por isso vao contra o texto original, nao contra a vista sem acento.
+_COPULA_ACENTUADA = re.compile(r'\b(?:é|está|estão|são|há)\b')
 _PALAVRA_VAZIA = {'que', 'a', 'o', 'as', 'os', 'de', 'da', 'do', 'em', 'no',
                   'na', 'e', 'ou', 'para', 'por', 'com', 'ao', 'aos', 'se'}
 _SUFIXO_VERBAL = re.compile(
-    r'\b\w{3,}(?:ou|eu|iu|aram|eram|iram|ava|avam|iam|arao|erao|irao|'
-    r'ando|endo|indo)\b')
+    r'\b\w{3,}(?:ou|eu|iu|aram|eram|iram|ava|avam|iam|arao|erao|irao)\b')
 
 
 # Vista de busca: troca acento e confusao de OCR por letra simples, caractere a
@@ -469,7 +477,10 @@ def extrai(texto):
         _add(spans, texto, ini, m.end(), 'jurisprudencia', 'vaga_classe_ano_rel')
 
     # 5. referencias anaforicas (sem qualquer identificador)
-    for m in VAGA_ANAFORICA.finditer(vista):
+    for inicio in INICIO_NUCLEO.finditer(vista):
+        m = VAGA_ANAFORICA.match(vista, inicio.start())
+        if m is None:
+            continue
         t = texto[m.start():m.end()]
         if any(ch.isdigit() for ch in t):
             continue
@@ -478,7 +489,8 @@ def extrai(texto):
         if t.split()[0].isupper() and len(t.split()[0]) > 3:
             continue  # 'PRECEDENTES INVOCADOS' e cabecalho de secao
         n = _norm(t)
-        if _VERBO_FINITO.search(n) or _SUFIXO_VERBAL.search(n):
+        if (_VERBO_FINITO.search(n) or _SUFIXO_VERBAL.search(n)
+                or _COPULA_ACENTUADA.search(t.lower())):
             continue
         pal = n.split()
         if len(pal) < 3 or pal[-1] in _PALAVRA_VAZIA:
