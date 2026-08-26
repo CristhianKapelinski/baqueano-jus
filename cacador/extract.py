@@ -316,7 +316,10 @@ VAGA_ANAFORICA = re.compile(
     r'\b(?:recentes?\s+|reiterados?\s+|iterativos?\s+)?'
     r'(?:' + _NUCLEO + r')'
     r'(?:[ \t\n\xa0]+[a-zà-ÿA-ZÀ-Ú][\wÀ-ÿ]*){1,7}?'
-    r'(?=[,.;:]|\n\s*\n|$)',
+    # fronteira do sintagma: pontuacao, linha em branco, fim - ou uma
+    # preposicao que abre adjunto ('... da Segunda Turma para sustentar que')
+    r'(?=[,.;:]|\s+(?:para|a\s+fim\s+de|quando|porque|pois|conforme|'
+    r'segundo|enquanto)\b|\n\s*\n|$)',
     re.I)
 _TEM_ANCORA = re.compile(_ANCORA, re.I)
 # Verbo finito dentro do sintagma: sinal de que a frase seguiu adiante e o
