@@ -82,7 +82,7 @@ _CONECTOR = r'(?:\s*(?:-|no|na|nos|nas|em|de|do|da)\s*)'
 _MARCA_FIM = r'(?:\s*n\s*[.ºo°]{1,2}\s*|\s*n\.\s*|\s+)?\s*$'
 CADEIA_CLASSE = re.compile(
     r'(?:' + ORDINAL_PREFIXO + r')?'
-    r'(?:(?:' + _CLASSE_ALT + r')\.?' + _CONECTOR + r'?){1,6}' + _MARCA_FIM, re.I)
+    r"(?:(?:" + _CLASSE_ALT + r")\.?['’]?s?" + _CONECTOR + r"?){1,6}" + _MARCA_FIM, re.I)
 # --------------------------------------------------------------------------
 # ancoras ABERTAS: reconhecem classe processual que nao esta na lista acima.
 # A lista fechada e sempre incompleta - a mineracao dos 1.018 registros da base
@@ -96,10 +96,12 @@ _NUCLEO_CLASSE = (r'Recursos?|Agravos?|Embargos?|Reclama[çc][õo]es|Reclama[çc
                   r'Suspens[ãa]o|Representa[çc][ãa]o|Temas?|Inqu[ée]ritos?|'
                   r'Peti[çc][ãa]o|Consulta|Corre[iç][çc][ãa]o|Incidentes?|'
                   r'Presta[çc][ãa]o|Medida|Argui[çc][ãa]o|Revis[ãa]o|Protesto')
+_ASPA_ABRE = r'["“”\'(]?'
+_ASPA_FECHA = r'["“”\')]?'
 ANCORA_NUCLEO = re.compile(
-    r'(?:' + ORDINAL_PREFIXO + r')?(?:' + _NUCLEO_CLASSE + r')'
-    r'(?:\s+(?:de|da|do|dos|das|em|no|na|nos|nas|e|com|contra)?\s*'
-    r'[A-Za-zÀ-ÿ][\wÀ-ÿ]*){0,8}' + _MARCA_FIM, re.I)
+    _ASPA_ABRE + r'(?:' + ORDINAL_PREFIXO + r')?(?:' + _NUCLEO_CLASSE + r')' + _ASPA_FECHA +
+    r'(?:[\s/]+(?:de|da|do|dos|das|em|no|na|nos|nas|e|com|contra|para)?\s*'
+    + _ASPA_ABRE + r'[A-Za-zÀ-ÿ][\wÀ-ÿ]*' + _ASPA_FECHA + r'){0,8}' + _MARCA_FIM, re.I)
 
 # (b) sigla: 'APM', 'IPM', 'IRDR', 'EAREsp', 'Ag-AIRR'. Uma sigla curta colada
 # no numero e, na pratica, sempre classe processual - salvo os marcadores de
@@ -110,6 +112,7 @@ SIGLA_NAO_E_CLASSE = re.compile(
     r'^(?:dje?|dou|doe|lei|leis|decreto|processo|autos|feito|fls?|folhas?|oab|'
     r'art|artigo|cpf|cnpj|rg|cep|conta|s[úu]mula|p[áa]gina|volume|item|'
     r'n|no|de|da|do|em|na|res|resolu[çc][ãa]o|portaria|of[íi]cio|memorial|'
+    r'eventos?|fl|doc|id|seq|anexos?|pe[çc]a|apenso|tema|item|inciso|'
     r'protocolo|parecer|peti[çc][ãa]o inicial|' + UFS.lower() + r')$', re.I)
 
 # 'Processo n TST- ED - E-ED-RR-41200-79...': o prefixo TST- carrega siglas
@@ -136,7 +139,12 @@ def _run_valido(t):
     return all((i > 0 and t[i - 1].isdigit()) or (i + 1 < len(t) and t[i + 1].isdigit())
                for i in letras)
 SUFIXO_REPERCUSSAO = re.compile(r'\s*d[ao]\s+repercuss[ãa]o\s+geral', re.I)
-UF_SUFIXO = re.compile(r'\s*(?:[/\-–]\s*(?:' + UFS + r')\b|\(\s*(?:' + UFS + r')\s*\))')
+# '1.741.784 - PR', '(SC)', e tambem o sufixo de recurso interno colado no
+# numero: '55.624-AgR/RO', '60.707-AgR-ED/RO'.
+_SUFIXO_RECURSO = r'(?:\s*-\s*(?:AgR|ED|EDv|AgR-ED|ED-AgR|EDcl|Segundo|Terceiro)){0,3}'
+UF_SUFIXO = re.compile(
+    _SUFIXO_RECURSO + r'\s*(?:[/\-–]\s*(?:' + UFS + r')\b|\(\s*(?:' + UFS + r')\s*\))'
+    r'|' + _SUFIXO_RECURSO.replace('{0,3}', '{1,3}'))
 
 # --------------------------------------------------------------------------
 # distratores: numeros do cabecalho e referencias que nao sao citacao
@@ -153,6 +161,9 @@ DISTRATOR_ESQUERDA = re.compile(
 DISTRATOR_DIREITA = re.compile(r'^\s*%')
 # No cabecalho, 'Processo nº <CNJ>' e o numero DOS AUTOS deste documento.
 AUTOS_PROPRIOS = re.compile(r'(?:processo|autos|feito)\s+n?[.ºo°]?\s*$', re.I)
+# No CORPO, 'Processo n <CNJ>' e referencia a OUTRO feito - portanto citacao.
+ANCORA_PROCESSO = re.compile(
+    r'(?:processos?|autos|feitos?|procedimentos?)\s*(?:n\s*[.ºo°]{0,2}\s*)?$', re.I)
 
 
 # Linha de cabecalho: 'Assistido: X', 'Processo nº Y', 'Protocolo nº Z'. E a
@@ -192,7 +203,7 @@ _INCISOS = r'(?:\s*,?\s*(?:inciso\s+|al[íi]nea\s+)?[IVXLC]+\b|\s*,?\s*§+\s*\d+
            r'(?:\s*-\s*[A-Z])?|\s*,?\s*[\'"‘“]?[a-z]\)?[\'"’”]?(?=\s*,\s*d))*'
 # O diploma vai ate o fim da frase: para antes de um ponto que inicia periodo
 # novo, de virgula, ponto-e-virgula ou linha em branco.
-_DIPLOMA_TAIL = r'(?:(?!\.\s+[A-ZÀ-Ú])(?!\n\s*\n)[^,;])'
+_DIPLOMA_TAIL = r'(?:(?!\.\s+[A-ZÀ-Ú])(?!\n\s*\n)[^,;()])'
 ARTIGO = re.compile(
     r'\bart(?:igo)?s?\.?\s*'
     r'(\d{1,4}(?:\.\d{3})*' + _ORDINAL + r'|correspondente)'
@@ -257,6 +268,25 @@ def _norm(s):
                    if not unicodedata.combining(c)).lower()
 
 
+def _apara_diploma(tail, ini_tail):
+    """Corta a cauda do diploma no ponto em que ele acaba de ser nomeado.
+
+    Sem isso, 'art. 123, I, do Codigo Penal Militar (Evento 109 da APM n
+    7000237-...)' vira um span so, engolindo a citacao seguinte.
+
+    A regra e o prefixo MAIS LONGO que nomeia um diploma - nao o mais curto:
+    'Codigo Penal Militar' tem que ganhar de 'Codigo Penal', que e outro codigo.
+    """
+    from .canon import codigo_do_diploma
+    escolhido = None
+    for p in re.finditer(r'\S+', tail):
+        if codigo_do_diploma(tail[:p.end()]) is not None:
+            escolhido = p.end()
+    if escolhido is None:
+        return tail, ini_tail + len(tail)
+    return tail[:escolhido], ini_tail + escolhido
+
+
 def _add(spans, texto, ini, fim, tipo, forma, **extra):
     while fim > ini and texto[fim - 1] in ' \t\n .,;:-–':
         fim -= 1
@@ -283,8 +313,9 @@ def extrai(texto):
 
     # 2. dispositivos de lei
     for m in ARTIGO.finditer(texto):
-        _add(spans, texto, m.start(), m.end(), 'lei', 'artigo',
-             artigo=m.group(1), diploma_txt=m.group(2))
+        diploma, fim = _apara_diploma(m.group(2), m.start(2))
+        _add(spans, texto, m.start(), fim, 'lei', 'artigo',
+             artigo=m.group(1), diploma_txt=diploma)
 
     # 3. jurisprudencia numerada: acha o numero, olha a esquerda
     ocupado = [(s['inicio'], s['fim']) for s in spans]
@@ -304,6 +335,8 @@ def extrai(texto):
             continue  # ano solto ('Rcl de 2021'), nao numero de processo
         c = (CADEIA_CLASSE.search(esquerda) or ANCORA_TST.search(esquerda)
              or ANCORA_NUCLEO.search(esquerda))
+        if c is None and ini >= corpo_comeca and len(digitos_de(m.group())) >= 14:
+            c = ANCORA_PROCESSO.search(esquerda)
         if c is None:
             c = ANCORA_SIGLA.search(esquerda)
             if c and SIGLA_NAO_E_CLASSE.match(c.group(1).strip(' .-')):
@@ -318,6 +351,11 @@ def extrai(texto):
         if rg:
             fim = rg.end()
         _add(spans, texto, ini_classe, fim, 'jurisprudencia', 'numerada')
+
+    # 3b. listas enumeradas: 'Rcls 60.699 e 60.703', 'Rcl's 55.624-AgR/RO,
+    # 60.681-AgR/RO, 60.682-AgR/RO'. Uma classe governa varios numeros; so o
+    # primeiro tem a classe a esquerda, os demais herdam.
+    spans += _lista_enumerada(texto, [s for s in spans if s['forma'] == 'numerada'])
 
     # 4. referencias vagas com tribunal/ano/relator
     for rx, forma in ((VAGA_TRIB_ANO_REL, 'vaga_trib_ano_rel'),
@@ -345,6 +383,41 @@ def extrai(texto):
         _add(spans, texto, m.start(), m.end(), tipo, 'vaga_anaforica')
 
     return _resolve_sobreposicao(spans)
+
+
+# Entre dois itens de uma lista so cabe pontuacao de enumeracao.
+SEPARADOR_DE_LISTA = re.compile(r'^\s*(?:[,;]\s*(?:e\s+)?|\s+e\s+)$')
+
+
+def _lista_enumerada(texto, numeradas):
+    """Numeros que continuam uma citacao ja reconhecida, em enumeracao.
+
+    O `trecho` do span continua sendo o texto literal (o contrato exige isso);
+    a classe do primeiro item viaja em `classe_herdada`, para a classificacao
+    poder inferir o tribunal.
+    """
+    novos = []
+    for s in numeradas:
+        primeiro_digito = next((i for i, c in enumerate(s['trecho']) if c.isdigit()),
+                               len(s['trecho']))
+        classe = s['trecho'][:primeiro_digito].strip(' \n.,-')
+        fim = s['fim']
+        while True:
+            prox = NUMERO.search(texto, fim, fim + 60)
+            if not prox or not SEPARADOR_DE_LISTA.match(texto[fim:prox.start()]):
+                break
+            if not _run_valido(prox.group()) or len(digitos_de(prox.group())) < 4:
+                break
+            f2 = prox.end()
+            uf = UF_SUFIXO.match(texto, f2)
+            if uf:
+                f2 = uf.end()
+            novos.append({'inicio': prox.start(), 'fim': f2,
+                          'trecho': texto[prox.start():f2],
+                          'tipo': 'jurisprudencia', 'forma': 'numerada',
+                          'classe_herdada': classe})
+            fim = f2
+    return novos
 
 
 def _resolve_sobreposicao(spans):

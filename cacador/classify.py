@@ -79,12 +79,14 @@ def classifica(span, base):
         return 'inventada', None, 0.85
 
     if forma == 'numerada':
+        # numero herdado de uma enumeracao carrega a classe do primeiro item
+        contexto = span['trecho'] + ' ' + span.get('classe_herdada', '')
         cadeias = cadeias_de_digitos(span['trecho'])
         if not cadeias:
             return 'incompleta', None, 0.60
-        pistas = (_tribunais_da_classe(span['trecho'])
+        pistas = (_tribunais_da_classe(contexto)
                   | _tribunais_do_cnj(cadeias)
-                  | _tribunal_explicito(span['trecho']))
+                  | _tribunal_explicito(contexto))
         feitos = base.feitos_por_numero(cadeias, pistas) if pistas else []
         if not feitos:
             # a pista de tribunal pode estar errada; tenta sem ela antes de
