@@ -3,31 +3,31 @@
 
 # Pesos da regressao logistica, na ordem de cacador.features.NOMES.
 PESOS = [
-     2.376430,  # vies
-     0.178746,  # forma=numerada
-     0.573086,  # forma=sumula
-    -1.860122,  # forma=artigo
-     1.025033,  # forma=vaga_trib_ano_rel
-     0.727051,  # forma=vaga_classe_ano_rel
-     0.899673,  # forma=vaga_anaforica
-     1.210528,  # classe=real
-     0.225800,  # classe=inventada
-     0.107138,  # classe=incompleta
-     0.403509,  # n_feitos
-     0.332938,  # sem_feito
+     2.333448,  # vies
+     0.269067,  # forma=numerada
+     0.553723,  # forma=sumula
+    -1.857980,  # forma=artigo
+     1.037673,  # forma=vaga_trib_ano_rel
+     0.738169,  # forma=vaga_classe_ano_rel
+     0.771886,  # forma=vaga_anaforica
+     1.193527,  # classe=real
+     0.252222,  # classe=inventada
+     0.066790,  # classe=incompleta
+     0.397842,  # n_feitos
+     0.319012,  # sem_feito
      0.000000,  # muitos_feitos
-     0.327564,  # log_digitos
-     0.400309,  # e_cnj
-     0.094635,  # tem_pista_tribunal
-     0.138666,  # pista_confere
-    -0.024725,  # letras_ocr
-    -1.335368,  # tem_quebra
-     1.437811,  # log_tamanho
-     2.208214,  # diploma_conhecido
+     0.316591,  # log_digitos
+     0.345384,  # e_cnj
+     0.236869,  # tem_pista_tribunal
+     0.099454,  # pista_confere
+     0.017926,  # letras_ocr
+    -1.333691,  # tem_quebra
+     1.482779,  # log_tamanho
+     2.186809,  # diploma_conhecido
      0.000000,  # herdada_de_lista
-     0.363113,  # ancora=classe
+     0.190404,  # ancora=classe
      0.000000,  # ancora=tst
-    -0.404254,  # ancora=nucleo
+    -0.132808,  # ancora=nucleo
      0.000000,  # ancora=processo
-     0.219887,  # ancora=sigla
+     0.211471,  # ancora=sigla
 ]

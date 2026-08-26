@@ -99,7 +99,7 @@ _NUCLEO_CLASSE = (r'Recursos?|Agravos?|Embargos?|Reclama[çc][õo]es|Reclama[çc
 _ASPA_ABRE = r'["“”\'(]?'
 _ASPA_FECHA = r'["“”\')]?'
 ANCORA_NUCLEO = re.compile(
-    _ASPA_ABRE + r'(?:' + ORDINAL_PREFIXO + r')?(?:' + _NUCLEO_CLASSE + r')' + _ASPA_FECHA +
+    _ASPA_ABRE + r'\b(?:' + ORDINAL_PREFIXO + r')?(?:' + _NUCLEO_CLASSE + r')' + _ASPA_FECHA +
     r'(?:[\s/]+(?:de|da|do|dos|das|em|no|na|nos|nas|e|com|contra|para)?\s*'
     + _ASPA_ABRE + r'[A-Za-zÀ-ÿ][\wÀ-ÿ]*' + _ASPA_FECHA + r'){0,8}' + _MARCA_FIM, re.I)
 
@@ -180,21 +180,27 @@ ANCORA_PROCESSO = re.compile(
 # estrutura rotulo/valor que separa o cabecalho do corpo - mais confiavel que
 # procurar a linha do tipo da peca, que se confunde com o nome do orgao.
 LINHA_DE_CABECALHO = re.compile(
-    r'^[A-ZÀ-Ú][\wÀ-ÿ .\-]{2,32}(?::|\s+n[ºo°.]{1,2})\s*\S', re.M)
+    r'^[A-ZÀ-Ú][\wÀ-ÿ.\-]*(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ.\-]*){0,2}'
+    r'(?::|\s+[nN][ºo°.]{1,2})\s*\S')
 
 
-def _fim_do_cabecalho(texto):
+def _fim_do_cabecalho(texto, max_linhas=12):
     """Onde termina o bloco de cabecalho e comeca o corpo da peca.
 
     No cabecalho, o numero em formato CNJ e o dos autos DESTE documento, e por
     isso distrator; no corpo, a referencia a outro processo ja e citacao.
+
+    O cabecalho sao as PRIMEIRAS linhas: sem esse limite, uma linha do corpo que
+    comece com maiuscula e traga um 'n' ('Reforca o argumento o REsp n 1.234')
+    seria lida como rotulo e engoliria o inicio do texto.
     """
-    fim = 0
-    for m in LINHA_DE_CABECALHO.finditer(texto[:1500]):
-        fim = texto.find('\n', m.end())
-        if fim < 0:
-            fim = m.end()
-    return fim if fim else min(600, len(texto))
+    linhas = texto.split('\n', max_linhas)[:max_linhas]
+    fim = pos = 0
+    for linha in linhas:
+        if len(linha) <= 80 and LINHA_DE_CABECALHO.match(linha):
+            fim = pos + len(linha)
+        pos += len(linha) + 1
+    return fim if fim else min(400, len(texto))
 
 
 # --------------------------------------------------------------------------
@@ -274,18 +280,38 @@ def _estende_classe_a_esquerda(texto, ini, limite=6):
 # Nucleo juridico de uma referencia anaforica, e a ancora que ela usa para
 # apontar para algo. A vista de busca ja tira o acento, entao basta a forma
 # simples; o sufixo tolerante ('jurisprud[..]ia') absorve corrupcao de OCR.
-_NUCLEO = (r'normas?|legislacao|leis?\b|dispositivos?|artigos?|preceitos?|'
-           r'jurisprud[\wÀ-ÿ]{0,4}ia|precedentes?|acordao|julgados?|arestos?|'
-           r'entend[\wÀ-ÿ]{0,6}ento|verbete|sumula|orientacao')
-_ANCORA = (r'reg[êe]ncia|invocad|repetitiv|sumulad|sumular|correspondente|'
-           r'mat[ée]ria|esp[ée]cie|corte|casa|turma|se[çc][ãa]o|caso|'
-           r'tribuna(?:l|is)|superior(?:es)?|origem|repercuss[ãa]o|'
-           r'regencia|materia|especie|secao|plenario|plen[áa]rio|competente')
+_NUCLEO = (r'normas?|legislacao|leis?\b|dispositivos?|disposicoes|artigos?|'
+           r'preceitos?|comandos?|regras?|textos?|diretrizes?|'
+           r'teses?|enunciados?|verbetes?|sumulas?|orientacao|orientacoes|'
+           r'jurisprud[\wÀ-ÿ]{0,4}ia|precedentes?|acordaos?|julgados?|arestos?|'
+           r'entend[\wÀ-ÿ]{0,6}entos?')
+# Ancora de referencia: o SUBSTANTIVO ou complemento para o qual a citacao
+# vaga aponta. Adjetivo solto ('hoje pacificada') nao entra: nao aponta nada.
+_ANCORA = (r'regencia|invocad|repetitiv|sumulad|sumular|correspondente|'
+           r'materia|especie|corte|casa|turma|secao|caso|hipotese|questao|'
+           r'tema|controversia|lide|demanda|feito|'
+           r'tribuna(?:l|is)|superior(?:es)?|origem|repercussao|plenario|'
+           r'competente|vigor|paradigma|pertinente|vinculante|federal|'
+           r'constitucional|processual|material|legal|legais|sumular')
 
 # Uma referencia sem identificador so e citacao quando e um SINTAGMA NOMINAL
 # fechado - termina em fronteira de oracao e nao contem verbo finito. E o que
 # separa 'jurisprudencia pacifica desta Corte' (citacao) de 'a orientacao dos
 # tribunais superiores e firme no ponto' (frase descritiva).
+# Predicado que introduz citacao. Uma referencia sem identificador so e citacao
+# quando alguem a INVOCA - a lista vem dos radicais das 86 frases-veiculo
+# observadas nos documentos.
+PISTA_CITACAO = re.compile(
+    # Radical VERBAL, com terminacao explicita: 'aplica-se' e veiculo,
+    # 'DO DIREITO APLICAVEL' e titulo de secao e nao pode contar.
+    r'(?:invoca|invocar|repousa|respaldo|observancia|amparo|ampara|apoia|'
+    r'ancora|arrima|aplica(?:-se|m|r|ndo)?\b|incidencia|atrai|confira|veja|'
+    r'colaciona|transcrev|milita|reconhec|assentado|decidiu|depreende|ignorar|'
+    r'registro|registre|impoe|caminha|decorre|desconsiderou|destacar|destaque|'
+    r'lembrar|firmad|diverge|ilustra|robustece|reforca|corrobora|merece|'
+    r'serve|guarda|colhe|extrai)'
+    r'(?:(?!\n\s*\n)[^.;!?]){0,50}$', re.I)
+
 VAGA_ANAFORICA = re.compile(
     r'\b(?:recentes?\s+|reiterados?\s+|iterativos?\s+)?'
     r'(?:' + _NUCLEO + r')'
@@ -301,6 +327,11 @@ _VERBO_FINITO = re.compile(
     r'revela|revelam|demonstra|demonstram|confirma|confirmam|afasta|afastam|'
     r'reconhece|reconhecem|firma|firmam|resulta|resultam|decorre|decorrem|'
     r'importa|importam|enseja|ensejam|assenta|assentam|dispoe|dispoem)\b')
+_PALAVRA_VAZIA = {'que', 'a', 'o', 'as', 'os', 'de', 'da', 'do', 'em', 'no',
+                  'na', 'e', 'ou', 'para', 'por', 'com', 'ao', 'aos', 'se'}
+_SUFIXO_VERBAL = re.compile(
+    r'\b\w{3,}(?:ou|eu|iu|aram|eram|iram|ava|avam|iam|arao|erao|irao|'
+    r'ando|endo|indo)\b')
 
 
 # Vista de busca: troca acento e confusao de OCR por letra simples, caractere a
@@ -399,6 +430,8 @@ def extrai(texto):
         c = CADEIA_CLASSE.search(esquerda)
         if c is None:
             c, ancora = ANCORA_TST.search(esquerda), 'tst'
+        if c is None and ini < corpo_comeca:
+            continue      # no cabecalho, so classe explicita conta
         if c is None:
             c, ancora = ANCORA_NUCLEO.search(esquerda), 'nucleo'
         if c is None and ini >= corpo_comeca and len(digitos_de(m.group())) >= 14:
@@ -442,9 +475,18 @@ def extrai(texto):
         if t.split()[0].isupper() and len(t.split()[0]) > 3:
             continue  # 'PRECEDENTES INVOCADOS' e cabecalho de secao
         n = _norm(t)
-        if not _TEM_ANCORA.search(n):
+        if _VERBO_FINITO.search(n) or _SUFIXO_VERBAL.search(n):
             continue
-        if _VERBO_FINITO.search(n):
+        pal = n.split()
+        if len(pal) < 3 or pal[-1] in _PALAVRA_VAZIA:
+            continue          # 'precedentes que' nao e referencia
+        # oracao relativa: o sintagma modifica a citacao ANTERIOR, nao e uma
+        # citacao nova ('a Rcl 55.626/DF, que bem ilustra a orientacao dominante')
+        if re.search(r'\bque\b[^.;]{0,28}$', _norm(texto[max(0, m.start() - 40):m.start()])):
+            continue
+        # aponta para algo, OU esta em posicao de citacao - basta um dos dois
+        if not (_TEM_ANCORA.search(n)
+                or PISTA_CITACAO.search(_norm(texto[max(0, m.start() - 75):m.start()]))):
             continue
         nucleo = _norm(t).split()[0]
         tipo = 'lei' if nucleo.startswith(('norma', 'legisla', 'disposit',
