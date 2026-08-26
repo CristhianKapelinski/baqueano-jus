@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 """Gerado por escolhe_confianca.py - NAO editar a mao.
 
-Nenhum modelo bateu uma constante no dado real: com poucos erros
-no goldenset nao ha sinal para ajustar nada mais fino. Emitimos a
-acuracia medida, com uma margem para baixo - errar por excesso de
+Nenhuma estrategia ajustada superou uma constante COM FOLGA neste
+conjunto. Isso nao diz que nao existe sinal: diz que 228 predicoes
+com 7 erros nao tem resolucao para separar uma vantagem de
+milesimo do ruido de amostragem. Ate haver mais dado real
+rotulado, a constante e a escolha defensavel. Emitimos a acuracia
+medida com uma margem para baixo, porque errar por excesso de
 confianca custa mais no Brier do que errar por falta.
 """
 

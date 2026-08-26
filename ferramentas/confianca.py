@@ -1,12 +1,27 @@
 # -*- coding: utf-8 -*-
 """Decide, por medicao, como emitir `confianca` - e grava a decisao.
 
-O bonus vale ate 10% e e medido por Brier score. Este script compara as
-estrategias possiveis por validacao cruzada agrupada por DOCUMENTO sobre o
-goldenset (o unico dado real), e escreve a vencedora em cacador/calibracao.py.
+O bonus vale ate 10% e e medido por Brier score, em que zero e perfeito. O
+script compara as estrategias sobre o goldenset, que e o unico dado real, e
+grava a vencedora em cacador/calibracao.py.
+
+Duas escolhas de desenho importam para a conclusao ser honesta:
+
+* A validacao cruzada e agrupada por DOCUMENTO, nunca por citacao, para nao
+  vazar contexto de um documento para ele mesmo.
+* A vencedora so desbanca a constante se a vantagem sobreviver a um bootstrap
+  por documento. Com 228 predicoes e 7 erros, diferencas de milesimo no Brier
+  cabem inteiras dentro do ruido de amostragem, e escolher pela media seria
+  escolher pelo acaso.
+
+Entre as candidatas esta o modelo treinado no conjunto sintetico, onde os erros
+sao mais numerosos, e recentrado na taxa de acerto real. E a unica forma de dar
+ao ajuste mais erros do que o goldenset oferece.
 """
 import argparse
 import collections
+
+import numpy as np
 
 import numpy as np
 
@@ -42,6 +57,42 @@ def cv_logistica(X, y, grupos, folds=6):
     return p
 
 
+def _do_sintetico(base, Xg, acc, pastas=('sintetico', 'sintetico_dificil')):
+    """Modelo ajustado onde ha erro em quantidade, recentrado na taxa real."""
+    Xs, ys = [], []
+    for pasta in pastas:
+        try:
+            X, y, _ = amostras(base, f'{pasta}/txt', f'{pasta}/goldenset.csv', id_str=True)
+        except FileNotFoundError:
+            continue
+        if (1 - y).sum():          # sem erro nenhum nao ha o que aprender
+            Xs.append(X); ys.append(y)
+    if not Xs:
+        return np.full(len(Xg), acc)
+    w = treina(np.vstack(Xs), np.concatenate(ys), l2=1.0)
+    z = Xg @ w
+    z = z - z.mean() + np.log(acc / (1 - acc))
+    return 1 / (1 + np.exp(-np.clip(z, -30, 30)))
+
+
+def _bootstrap(referencia, candidato, y, grupos, reamostras=4000, semente=0):
+    """IC da vantagem do candidato sobre a referencia, reamostrando DOCUMENTOS.
+
+    O documento e a unidade de amostragem: citacoes do mesmo documento nao sao
+    independentes, e reamostrar citacao a citacao estreitaria o intervalo de
+    mentira.
+    """
+    docs = np.unique(grupos)
+    indices = {d: np.where(grupos == d)[0] for d in docs}
+    rng = np.random.default_rng(semente)
+    difs = np.empty(reamostras)
+    for k in range(reamostras):
+        idx = np.concatenate([indices[d] for d in rng.choice(docs, len(docs), replace=True)])
+        difs[k] = brier(referencia[idx], y[idx]) - brier(candidato[idx], y[idx])
+    lo, hi = np.percentile(difs, [2.5, 97.5])
+    return lo, hi, float((difs > 0).mean())
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--margem', type=float, default=0.01,
@@ -60,6 +111,7 @@ def main():
           f'acerto {acc:.4f}\n')
     cand = {
         'constante': np.full(len(y), acc),
+        'sintetico, recentrado': _do_sintetico(base, X, acc),
         'taxa por forma': cv_taxa(forma, y, grupos, acc),
         'taxa por classe': cv_taxa(classe, y, grupos, acc),
         'taxa por forma+classe': cv_taxa(
@@ -71,19 +123,30 @@ def main():
     for nome, p in cand.items():
         print(f'{nome:26s} {brier(p, y):9.5f} {ece(p, y):9.5f} {auc(p, y):7.3f} '
               f'{ref - brier(p, y):+14.5f}')
-    melhor = min(cand, key=lambda k: brier(cand[k], y))
-    print(f'\n-> vence: {melhor}')
+    # o bootstrap compara sempre a MELHOR ajustada contra a constante: e a
+    # unica comparacao que decide alguma coisa.
+    ajustadas = {k: v for k, v in cand.items() if k != 'constante'}
+    desafiante = min(ajustadas, key=lambda k: brier(ajustadas[k], y))
+    lo, hi, vitorias = _bootstrap(cand['constante'], ajustadas[desafiante], y, grupos)
+    print(f'\nmelhor ajustada: {desafiante}')
+    print(f'vantagem sobre a constante: {brier(cand["constante"], y) - brier(ajustadas[desafiante], y):+.5f}'
+          f'  IC 95% [{lo:+.5f}, {hi:+.5f}]  vence em {vitorias:.0%} das reamostras')
+    melhor = desafiante if lo > 0 else 'constante'
+    print(f'-> {"vence " + desafiante if lo > 0 else "a vantagem nao sobrevive ao ruido; fica a constante"}')
 
     if melhor != 'constante':
         raise SystemExit(
-            'Um modelo passou a bater a constante - reveja escolhe_confianca.py '
-            'para gravar os pesos em vez do valor fixo.')
+            'Um modelo passou a bater a constante com folga - grave os pesos '
+            'em vez do valor fixo.')
     valor = round(float(acc) - a.margem, 4)
     corpo = ('# -*- coding: utf-8 -*-\n'
              '"""Gerado por escolhe_confianca.py - NAO editar a mao.\n\n'
-             'Nenhum modelo bateu uma constante no dado real: com poucos erros\n'
-             'no goldenset nao ha sinal para ajustar nada mais fino. Emitimos a\n'
-             'acuracia medida, com uma margem para baixo - errar por excesso de\n'
+             'Nenhuma estrategia ajustada superou uma constante COM FOLGA neste\n'
+             'conjunto. Isso nao diz que nao existe sinal: diz que 228 predicoes\n'
+             'com 7 erros nao tem resolucao para separar uma vantagem de\n'
+             'milesimo do ruido de amostragem. Ate haver mais dado real\n'
+             'rotulado, a constante e a escolha defensavel. Emitimos a acuracia\n'
+             'medida com uma margem para baixo, porque errar por excesso de\n'
              'confianca custa mais no Brier do que errar por falta.\n'
              '"""\n\n'
              'MODO = "constante"\n'

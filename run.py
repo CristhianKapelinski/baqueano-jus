@@ -22,6 +22,22 @@ CHAVES_DO_CONTRATO = ('id', 'inicio', 'fim', 'trecho', 'tipo', 'classificacao',
                       'resolucao', 'confianca')
 
 
+def _le(arq, avisos):
+    """Le o documento, substituindo byte invalido em vez de desistir dele.
+
+    O desafio garante UTF-8 valido, entao isto e defesa. Mas desistir custa o
+    documento inteiro, enquanto substituir custa um caractere: `errors=replace`
+    poe um U+FFFD por byte invalido, o comprimento em codepoints nao muda, e as
+    citacoes ao redor continuam extraiveis com os offsets certos.
+    """
+    bruto = arq.read_bytes()
+    texto = bruto.decode('utf-8', errors='replace')
+    if '\ufffd' in texto:
+        avisos.append(f'{arq.name}: {texto.count(chr(0xfffd))} byte(s) invalido(s) '
+                      'substituido(s), o resto do documento foi processado')
+    return texto
+
+
 def _escreve_submissao(pasta_json, destino):
     """Mesmo CSV que dados/json_to_submission.py produz, sem depender dele."""
     linhas = []
@@ -52,7 +68,7 @@ def _confere_encoding(texto, doc, arq):
         raise ValueError('arquivo com BOM - o desafio exige UTF-8 sem BOM')
     if '\r' in texto:
         raise ValueError('quebra CRLF - o desafio exige LF')
-    if unicodedata.normalize('NFC', texto) != texto:
+    if unicodedata.normalize('NFC', texto.replace('\ufffd', '')) != texto.replace('\ufffd', ''):
         raise ValueError('texto nao esta em NFC')
     for c in doc['citacoes']:
         if texto[c['inicio']:c['fim']] != c['trecho']:
@@ -76,30 +92,30 @@ def main():
     if not arquivos:
         sys.exit(f'nenhum .txt em {entrada}')
     total = 0
-    problemas = []
+    avisos, falhas = [], []
     for arq in arquivos:
         # ISOLAMENTO POR DOCUMENTO. O conjunto de teste e processado em lote,
         # sem ninguem por perto: um arquivo com encoding estranho ou estrutura
         # inesperada nao pode custar o lote inteiro. Falha vira predicao vazia
         # para aquele documento - perda de um, nao de todos.
         try:
-            texto = arq.read_text(encoding='utf-8')
+            texto = _le(arq, avisos)
             doc = processa_documento(texto, base, documento_id=arq.stem)
             doc['citacoes'] = [{k: c[k] for k in CHAVES_DO_CONTRATO}
                                for c in doc['citacoes']]
             _confere_encoding(texto, doc, arq)
         except Exception as e:                       # noqa: BLE001 - de proposito
-            problemas.append(f'{arq.name}: {type(e).__name__}: {e}')
+            falhas.append(f'{arq.name}: {type(e).__name__}: {e}')
             doc = {'schema_version': ESQUEMA, 'documento_id': arq.stem, 'citacoes': []}
         (saida / f'{arq.stem}.json').write_text(
             json.dumps(doc, ensure_ascii=False, indent=1), encoding='utf-8')
         total += len(doc['citacoes'])
     print(f'{len(arquivos)} documentos, {total} citacoes -> {saida}')
-    if problemas:
-        print(f'AVISO: {len(problemas)} documento(s) sairam vazios por falha:',
-              file=sys.stderr)
-        for m in problemas:
-            print('  ' + m, file=sys.stderr)
+    for titulo, lista in (('recuperado(s)', avisos), ('sem predicao', falhas)):
+        if lista:
+            print(f'AVISO: {len(lista)} documento(s) {titulo}:', file=sys.stderr)
+            for m in lista:
+                print('  ' + m, file=sys.stderr)
 
     if a.submissao:
         conversor = Path(__file__).parent / 'dados' / 'json_to_submission.py'

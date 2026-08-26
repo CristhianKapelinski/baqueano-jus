@@ -46,14 +46,14 @@ def _frases(d):
     return list(dict.fromkeys(saida))
 
 
-def posicoes_no_acervo(con, alvo):
-    """Posicao da primeira ocorrencia do numero, em cada documento que o contem.
+def leituras_no_acervo(con, alvo):
+    """Posicao da primeira ocorrencia e numero de ocorrencias, por documento.
 
-    O FTS estreita os candidatos; a posicao e medida no texto, com uma varredura
-    propria - nao ha chamada ao parser de cabecalho em lugar nenhum daqui.
+    O FTS estreita os candidatos; as duas medidas saem de uma varredura propria.
+    Nao ha chamada ao parser de cabecalho em lugar nenhum daqui.
     """
     sem_zero = alvo.lstrip('0')
-    achados = {}
+    achados, contagem = {}, {}
     for frase in _frases(alvo):
         linhas = con.execute(
             "SELECT d.documento_id, d.texto FROM documentos_fts "
@@ -63,12 +63,12 @@ def posicoes_no_acervo(con, alvo):
         for did, texto in linhas:
             if did in achados:
                 continue
-            for m in NUM.finditer(texto):
-                d = digitos(m.group())
-                if d == alvo or d == sem_zero or d.lstrip('0') == sem_zero:
-                    achados[did] = m.start()
-                    break
-    return achados
+            posicoes = [m.start() for m in NUM.finditer(texto)
+                        if digitos(m.group()) in (alvo, sem_zero)
+                        or digitos(m.group()).lstrip('0') == sem_zero]
+            if posicoes:
+                achados[did], contagem[did] = posicoes[0], len(posicoes)
+    return achados, contagem
 
 
 def main():
@@ -83,9 +83,8 @@ def main():
     linhas = base.con.execute(
         "SELECT documento_id, id, tribunal, texto FROM documentos "
         "WHERE natureza='acordao'").fetchall()
-    textos = {l[0]: (l[2], l[3]) for l in linhas}
-    id_por_doc = {l[0]: l[1] for l in linhas}
     doc_por_id = {l[1]: l[0] for l in linhas}
+    trib_por_doc = {l[0]: l[2] for l in linhas}
 
     # colhe citacoes reais do corpo dos acordaos (amostra das fontes primeiro:
     # varrer os 1.000 inteiros custa minutos e nao muda a conclusao)
@@ -100,43 +99,63 @@ def main():
             if classe != 'real' or not idc:
                 continue
             d = digitos(s['trecho'].replace('\n', ' '))
-            if len(d) < 5 or doc_por_id.get(int(idc)) == did:
+            alvo = doc_por_id.get(int(idc))
+            if len(d) < 5 or alvo == did:
                 continue
-            casos.append((did, d, int(idc)))
-    rng = random.Random(a.semente)
-    rng.shuffle(casos)
-    casos = casos[:a.amostra]
+            casos.append((did, d, int(idc), trib_por_doc.get(alvo, '?')))
 
-    concorda = discorda = sem_dado = 0
+    # amostra ESTRATIFICADA por tribunal: aleatoria concentra STF e STJ e deixa
+    # o TST e o STM, onde o oraculo de posicao e fraco, sem caso nenhum.
+    rng = random.Random(a.semente)
+    por_trib = collections.defaultdict(list)
+    for c in casos:
+        por_trib[c[3]].append(c)
+    cota = max(1, a.amostra // max(1, len(por_trib)))
+    casos = []
+    for trib in sorted(por_trib):
+        grupo = por_trib[trib]
+        rng.shuffle(grupo)
+        casos.extend(grupo[:cota])
+    rng.shuffle(casos)
+
+    por_trib = collections.defaultdict(lambda: collections.Counter())
     exemplos = []
-    for citante, d, idc in casos:
-        pos = posicoes_no_acervo(base.con, d)
-        pos.pop(citante, None)
+    for citante, d, idc, trib in casos:
+        pos, freq = leituras_no_acervo(base.con, d)
+        pos.pop(citante, None); freq.pop(citante, None)
+        c = por_trib[trib]
         if not pos:
-            sem_dado += 1
+            c['sem_dado'] += 1
             continue
-        melhor = min(pos.values())
+        resolvido = doc_por_id.get(idc)
         # empate = dois registros do MESMO feito. O enunciado diz que acertar
         # qualquer id do conjunto conta como acerto pleno, entao empate e
         # concordancia, nao divergencia.
-        vencedores = {d for d, p in pos.items() if p == melhor}
-        vencedor = min(vencedores)
-        resolvido = doc_por_id.get(idc)
-        if resolvido in vencedores:
-            concorda += 1
-        else:
-            discorda += 1
-            if len(exemplos) < 8:
-                exemplos.append((d, resolvido, pos.get(resolvido), vencedor, pos[vencedor]))
-    total = concorda + discorda
-    print(f'citacoes auditadas: {total} (mais {sem_dado} sem outra ocorrencia no acervo)')
-    if total:
-        print(f'a segunda leitura CONCORDA com o resolvedor: {concorda} '
-              f'({concorda/total:.1%})')
-        print(f'discorda: {discorda}')
+        vence_pos = {k for k, v in pos.items() if v == min(pos.values())}
+        vence_freq = {k for k, v in freq.items() if v == max(freq.values())}
+        c['total'] += 1
+        c['posicao'] += resolvido in vence_pos
+        c['frequencia'] += resolvido in vence_freq
+        divergiu = (trib, d, resolvido, pos.get(resolvido), freq.get(resolvido),
+                    sorted(vence_pos)[:1], sorted(vence_freq)[:1])
+        if (resolvido not in vence_pos or resolvido not in vence_freq) \
+                and divergiu not in exemplos and len(exemplos) < 10:
+            exemplos.append(divergiu)
+    print(f'{"tribunal":9s} {"n":>4s} {"posicao":>10s} {"frequencia":>12s}')
+    tot = collections.Counter()
+    for trib in sorted(por_trib):
+        c = por_trib[trib]; tot.update(c)
+        if not c['total']:
+            print(f'{trib:9s} {0:>4d}  (nenhuma citacao resolvivel amostrada)'); continue
+        print(f'{trib:9s} {c["total"]:>4d} {c["posicao"]/c["total"]:>9.0%} '
+              f'{c["frequencia"]/c["total"]:>11.0%}')
+    if tot['total']:
+        print(f'{"TOTAL":9s} {tot["total"]:>4d} {tot["posicao"]/tot["total"]:>9.0%} '
+              f'{tot["frequencia"]/tot["total"]:>11.0%}')
     for e in exemplos:
-        print(f'   numero {e[0]}: resolvedor -> {e[1]} (posicao {e[2]}), '
-              f'segunda leitura -> {e[3]} (posicao {e[4]})')
+        print(f'   [{e[0]}] numero {e[1]}: resolvedor -> {e[2]} '
+              f'(posicao {e[3]}, {e[4]} ocorrencias); '
+              f'posicao aponta {e[5]}, frequencia aponta {e[6]}')
 
 
 if __name__ == '__main__':

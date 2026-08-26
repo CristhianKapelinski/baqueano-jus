@@ -319,7 +319,7 @@ flowchart LR
 |---|---|---|
 | goldenset | 225 citações | 97,9% ponderado, recall de span 99,1%, precisão 97,8% |
 | acervo real | 627 citações | 100% de span, 100% de link |
-| auditoria independente | 150 citações | 100% de concordância |
+| auditoria independente | 67 citações, 5 tribunais | 100% pelo oráculo de posição, 94% pelo de frequência |
 | sintético, semente inédita | 1.995 citações | 99,2% ponderado, precisão 100% |
 | paráfrases anafóricas | 28 positivos, 15 negativos | 96% de recall, 100% de precisão |
 | ruído de OCR no nível real | 0,5% dos caracteres | 95,1% ponderado |
@@ -357,11 +357,37 @@ cabeçalho que constrói o índice. Isso a torna **circular**: se o leitor erra,
 auditor e resolvedor erram igual, e o teste reporta acerto. Ela valida
 consistência, não correção, e está marcada como tal no código.
 
-`avaliacao/auditoria.py` usa um critério diferente, que não passa pelo
-leitor. Dado um número citado, ele varre o acervo atrás de todos os documentos
-que o contêm e mede a posição da primeira ocorrência em cada um. Quem é o
-processo carrega o número mais cedo; quem apenas cita o traz no corpo. O
-registro certo é o de menor posição.
+`avaliacao/auditoria.py` usa dois critérios que não passam pelo leitor, e que
+falham por razões diferentes.
+
+- **Posição.** Quem é o processo carrega o número mais cedo; quem apenas cita o
+  traz no corpo. É forte no STF, no STJ e no TSE, onde o número está no
+  cabeçalho, e fraco no TST e no STM, onde a linha de autuação pode estar a
+  milhares de caracteres do início.
+- **Frequência.** Quem é o processo repete o próprio número, no cabeçalho, na
+  autuação e no rodapé; quem apenas cita costuma mencionar uma vez. Não depende
+  de posição, então não herda a fraqueza do primeiro.
+
+A amostra é estratificada por tribunal, porque uma amostra aleatória concentra
+STF e STJ e deixa o TST e o STM, justamente onde o oráculo de posição é fraco,
+com poucos casos ou nenhum.
+
+**Tabela 3.** Concordância entre o resolvedor e cada oráculo, por tribunal.
+
+| tribunal | n | posição | frequência |
+|---|---|---|---|
+| STF | 15 | 100% | 100% |
+| STJ | 15 | 100% | 73% |
+| STM | 15 | 100% | 100% |
+| TSE | 15 | 100% | 100% |
+| TST | 7 | 100% | 100% |
+| **total** | **67** | **100%** | **94%** |
+
+O oráculo de posição concorda em todos os cinco tribunais, inclusive nos dois
+onde se esperava que fosse fraco. Onde o de frequência discorda, a inspeção
+mostra que o errado é ele: no caso do número 1377019, o resolvedor aponta um
+documento que traz o número na posição 20, que só pode ser cabeçalho, enquanto
+o oráculo de frequência prefere outro que o menciona mais vezes no corpo.
 
 Na primeira rodada essa segunda leitura discordou em 80% dos casos. Os dois
 lados tinham defeito. No sistema, era a janela frouxa da rede de segurança,
