@@ -114,6 +114,11 @@ def classifica(span, base):
             # a pista de tribunal pode estar errada; tenta sem ela antes de
             # declarar inexistente
             feitos = base.feitos_por_numero(cadeias)
+        if not feitos:
+            # rede de seguranca: o indice vem de um parser de cabecalho, e um
+            # cabecalho lido errado transformaria uma `real` em `inventada`
+            feitos = base.feitos_por_fts(cadeias, pistas)
+            diag['por_fts'] = bool(feitos)
         diag['n_feitos'] = len(feitos)
         if len(feitos) == 1:
             return 'real', str(feitos[0].registros[0]['id']), 0.90, diag

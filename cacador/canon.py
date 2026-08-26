@@ -201,6 +201,14 @@ def codigo_do_diploma(trecho):
 Feito = collections.namedtuple('Feito', 'chave registros')
 
 
+def _posicao_no_cabecalho(texto, frase, janela):
+    """O numero aparece no comeco do documento - logo, o feito e este."""
+    digitos_alvo = frase.replace(' ', '')
+    cabeca = texto[:janela]
+    corrido = re.sub(r'[^0-9]', '', cabeca)
+    return digitos_alvo in corrido or digitos_alvo.lstrip('0') in corrido
+
+
 class BaseCanonica:
     def __init__(self, db=DB_PADRAO):
         self.con = sqlite3.connect(db)
@@ -309,6 +317,61 @@ class BaseCanonica:
     def dispositivo(self, codigo, artigo):
         r = self.dispositivos.get((codigo, artigo))
         return [r] if r else []
+
+    # Onde fica o numero do PROPRIO feito, por tribunal. No STF/STJ/TSE ele
+    # esta no cabecalho; no TST e no STM vem na linha de autuacao ('estes autos
+    # de ... n TST-...'), que pode estar a milhares de caracteres do inicio.
+    JANELA_CABECALHO = {'STF': 700, 'STJ': 700, 'TSE': 900, 'TST': 8000, 'STM': 8000}
+
+    def feitos_por_fts(self, cadeias, tribunais=None, janela=None):
+        """Ultimo recurso quando o indice de cabecalho nao acha o numero.
+
+        O indice e construido por um parser de cabecalho; se ele errar num
+        registro, uma citacao real a esse registro viraria `inventada`. O FTS
+        cobre esse buraco - mas devolve tambem quem apenas CITA o numero, e por
+        isso so vale o resultado em que o numero aparece nas primeiras
+        `janela` posicoes, que e onde fica o numero do proprio feito.
+        """
+        achados = {}
+        for d in cadeias:
+            if len(d) < 5:
+                continue
+            for frase in self._frases_fts(d):
+                try:
+                    linhas = self.con.execute(
+                        "SELECT d.documento_id, d.id, d.tribunal, d.texto "
+                        "FROM documentos_fts JOIN documentos d "
+                        "  ON d.rowid = documentos_fts.rowid "
+                        "WHERE documentos_fts MATCH ? AND d.natureza='acordao' "
+                        "LIMIT 40", (f'"{frase}"',)).fetchall()
+                except sqlite3.OperationalError:
+                    continue
+                for did, i, trib, texto in linhas:
+                    if tribunais and trib not in tribunais:
+                        continue
+                    lim = janela or self.JANELA_CABECALHO.get(trib, 700)
+                    if _posicao_no_cabecalho(texto, frase, lim):
+                        achados.setdefault((d.lstrip('0') or d, trib), []).append(
+                            {'documento_id': did, 'id': i, 'tribunal': trib})
+        return [Feito(k, v) for k, v in achados.items()]
+
+    @staticmethod
+    def _frases_fts(d):
+        """Formas com que o numero aparece no texto, como sequencia de tokens."""
+        saida = []
+        if 14 <= len(d) <= 20:
+            p = d.rjust(20, '0')
+            saida.append(f'{p[:7]} {p[7:9]} {p[9:13]} {p[13]} {p[14:16]} {p[16:]}')
+            q = p.lstrip('0')
+            if len(q) >= 13:
+                saida.append(f'{q[:-13]} {q[-13:-11]} {q[-11:-7]} {q[-7]} {q[-6:-4]} {q[-4:]}')
+        else:
+            grupos, resto = [], d
+            while len(resto) > 3:
+                grupos.insert(0, resto[-3:]); resto = resto[:-3]
+            grupos.insert(0, resto)
+            saida.append(' '.join(grupos))
+        return [f for f in dict.fromkeys(saida) if f.strip()]
 
     def conta_acordaos(self, tribunal=None, ano=None, relator=None):
         """Quantos acordaos casam com tribunal/ano/relator - a consulta que

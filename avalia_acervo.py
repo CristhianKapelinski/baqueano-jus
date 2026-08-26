@@ -19,6 +19,7 @@ import random
 import re
 
 from cacador.canon import BaseCanonica, PARSERS
+from cacador.classify import classifica
 from cacador.extract import extrai
 from cacador.normalize import digitos, variantes_cnj
 
@@ -54,6 +55,18 @@ def ocorrencias_resolviveis(texto, base, numero_proprio, tribunal):
     return achados
 
 
+def _link_confere(base, id_canonico, digitos_citados):
+    """O registro resolvido e mesmo aquele cujo cabecalho traz esse numero?"""
+    if not id_canonico:
+        return False
+    linha = base.con.execute(
+        "SELECT tribunal, texto FROM documentos WHERE id=?", (int(id_canonico),)).fetchone()
+    if not linha:
+        return False
+    proprio = PARSERS[linha[0]](linha[1]) or ''
+    return proprio.lstrip('0') == digitos_citados.lstrip('0')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--amostra', type=int, default=120,
@@ -72,6 +85,7 @@ def main():
         linhas = rng.sample(linhas, min(a.amostra, len(linhas)))
 
     total = cobertos = 0
+    res_ok = res_classe = res_link = 0
     docs_com_falha = collections.Counter()
     exemplos = []
     for did, trib, texto in linhas:
@@ -81,10 +95,22 @@ def main():
         if not alvos:
             continue
         spans = extrai(trecho)
+        por_pos = {(s['inicio'], s['fim']): s for s in spans}
         for ini, fim, d in alvos:
             total += 1
-            if any(s['inicio'] <= ini and fim <= s['fim'] + 2 for s in spans):
+            cobre = [s for s in spans if s['inicio'] <= ini and fim <= s['fim'] + 2]
+            if cobre:
                 cobertos += 1
+                # auditoria do LINK: a base e congelada, entao da para conferir
+                # sem gabarito - o registro resolvido tem que ser aquele cujo
+                # CABECALHO carrega o numero citado.
+                classe, idc, _, _ = classifica(cobre[0], base)
+                if classe != 'real':
+                    res_classe += 1
+                elif not _link_confere(base, idc, d):
+                    res_link += 1
+                else:
+                    res_ok += 1
             else:
                 docs_com_falha[did] += 1
                 if len(exemplos) < 25:
@@ -92,7 +118,13 @@ def main():
     print(f'acordaos avaliados: {len(linhas)}  (primeiros {a.janela} chars de cada)')
     print(f'citacoes resolviveis encontradas: {total}')
     print(f'cobertas por um span do extrator: {cobertos}  ({cobertos/total:.1%})' if total else 'nada')
-    print(f'\ndocumentos com pelo menos uma falha: {len(docs_com_falha)}')
+    if cobertos:
+        print(f'\nauditoria do link nas {cobertos} citacoes cobertas:')
+        print(f'   resolveu para o registro cujo cabecalho tem o numero: {res_ok} '
+              f'({res_ok/cobertos:.1%})')
+        print(f'   nao classificou como real: {res_classe}')
+        print(f'   resolveu para outro registro: {res_link}')
+    print(f'\ndocumentos com pelo menos uma falha de span: {len(docs_com_falha)}')
     print('\nexemplos de citacao NAO coberta:')
     for e in exemplos:
         print(f'  [{e[1]}] {e[2][:150]}')
