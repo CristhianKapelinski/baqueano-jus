@@ -279,9 +279,9 @@ por dez custa treze pontos.
 Quanto do resultado depende de a lista de classes ter sido escrita certa? É o
 que a curva da direita responde. A linha tracejada é a
 versão que tinha só a lista fechada. Remover metade das 88 entradas custava
-15,7 pontos. Com a âncora aberta, a mesma remoção custa 1,5 ponto. É a
-diferença entre um sistema que depende do meu inventário e um que depende do
-formato.
+15,7 pontos. Com a âncora aberta, a mesma remoção custa 1,4 ponto. É a
+diferença entre um sistema que depende do inventário escrito à mão e um que
+depende do formato.
 
 ---
 
@@ -322,6 +322,8 @@ flowchart LR
 | auditoria independente | 150 citações | 100% de concordância |
 | sintético, semente inédita | 1.995 citações | 99,2% ponderado, precisão 100% |
 | paráfrases anafóricas | 28 positivos, 15 negativos | 96% de recall, 100% de precisão |
+| ruído de OCR no nível real | 0,5% dos caracteres | 95,1% ponderado |
+| metade do vocabulário removida | 44 das 88 entradas | 96,5% ponderado |
 
 ### O goldenset, e o overfit que ele escondia
 

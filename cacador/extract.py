@@ -79,7 +79,9 @@ ORDINAL_PREFIXO = (r'(?:Primeir|Segund|Terceir|Quart|Quint|Sext)[oa]s?\s+')
 _CLASSE_ALT = '|'.join(CLASSES)
 # Uma cadeia de classes: 'EDcl nos EDcl no AgInt no Agravo em Recurso Especial'
 _CONECTOR = r'(?:\s*(?:-|no|na|nos|nas|em|de|do|da)\s*)'
-_MARCA_FIM = r'(?:\s*[nN]\s*[.ºo°O]{1,2}\s*|\s*[nN]\.\s*|\s+)?\s*$'
+# Entre a classe e o numero cabe um marcador ('n', 'No'), espaco, ou o HIFEN
+# que cola a sigla no numero, como em 'ArgInc- 479-60.2011...' e 'ADI-MC 7.123'.
+_MARCA_FIM = r'(?:\s*[nN]\s*[.ºo°O]{1,2}\s*|\s*[nN]\.\s*|\s*[-–]\s*|\s+)?\s*$'
 CADEIA_CLASSE = re.compile(
     r'(?:' + ORDINAL_PREFIXO + r')?'
     r"(?:(?:" + _CLASSE_ALT + r")\.?['’]?s?" + _CONECTOR + r"?){1,6}" + _MARCA_FIM, re.I)

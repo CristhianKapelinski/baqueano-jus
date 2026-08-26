@@ -105,7 +105,7 @@ def main():
                 # ATENCAO: chama o mesmo PARSERS que constroi o indice, entao e
                 # CIRCULAR: se o parser le um cabecalho errado, auditor e
                 # resolvedor erram igual e isto reporta acerto. A segunda
-                # leitura independente esta em auditoria_independente.py.
+                # leitura independente esta em avaliacao/auditoria.py.
                 classe, idc, _, _ = classifica(cobre[0], base)
                 if classe != 'real':
                     res_classe += 1
@@ -122,7 +122,7 @@ def main():
     print(f'cobertas por um span do extrator: {cobertos}  ({cobertos/total:.1%})' if total else 'nada')
     if cobertos:
         print(f'\nconsistencia do link nas {cobertos} citacoes cobertas '
-              f'(teste CIRCULAR - ver auditoria_independente.py):')
+              f'(teste CIRCULAR - ver avaliacao/auditoria.py):')
         print(f'   resolveu para o registro cujo cabecalho tem o numero: {res_ok} '
               f'({res_ok/cobertos:.1%})')
         print(f'   nao classificou como real: {res_classe}')
