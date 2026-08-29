@@ -4,8 +4,8 @@ import sys, collections
 import pandas as pd
 
 from .gabarito import carrega
-from cacador.canon import BaseCanonica
-from cacador.pipeline import processa_documento
+from baqueano.canon import BaseCanonica
+from baqueano.pipeline import processa_documento
 from .metrica import DEV, HOLDOUT, alinha
 
 conj = sys.argv[1] if len(sys.argv) > 1 else 'dev'

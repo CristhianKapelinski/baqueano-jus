@@ -3,7 +3,7 @@
 
 O bonus vale ate 10% e e medido por Brier score, em que zero e perfeito. O
 script compara as estrategias sobre o goldenset, que e o unico dado real, e
-grava a vencedora em cacador/calibracao.py.
+grava a vencedora em baqueano/calibracao.py.
 
 Duas escolhas de desenho importam para a conclusao ser honesta:
 
@@ -26,8 +26,8 @@ import numpy as np
 import numpy as np
 
 from avaliacao.amostragem import amostras, auc, brier, ece, treina
-from cacador.canon import BaseCanonica
-from cacador.features import CLASSES, FORMAS, NOMES
+from baqueano.canon import BaseCanonica
+from baqueano.features import CLASSES, FORMAS, NOMES
 
 
 def cv_taxa(chaves, y, grupos, acc, alfa=2.0, folds=6):
@@ -153,8 +153,8 @@ def main():
              f'CONSTANTE = {valor}\n'
              f'# acuracia medida no goldenset: {acc:.4f}; margem aplicada: {a.margem}\n'
              'PESOS = None\n')
-    open('cacador/calibracao.py', 'w', encoding='utf-8').write(corpo)
-    print(f'cacador/calibracao.py: constante {valor} '
+    open('baqueano/calibracao.py', 'w', encoding='utf-8').write(corpo)
+    print(f'baqueano/calibracao.py: constante {valor} '
           f'(acuracia {acc:.4f} menos margem {a.margem})')
 
 

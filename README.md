@@ -1,6 +1,9 @@
-# Caça-Alucinações
+# BaqueanoJus
 
 Verificador de citações jurídicas para o challenge Jusbrasil × BRACIS 2026.
+
+O nome vem do **baqueano**, o guia que conhece o terreno e chega ao destino sem
+trilha marcada, que é o que o resolvedor faz com uma referência mal escrita.
 
 O sistema lê uma peça jurídica em texto puro, acha cada citação de
 jurisprudência e de lei, e decide se ela é verdadeira, inventada ou vaga demais
@@ -59,7 +62,7 @@ flowchart TD
     style I fill:#EFEFEF,stroke:#8A97AD
 ```
 
-A base é uma **cobertura congelada** de 1.018 registros, e esse detalhe do
+A base é uma **cobertura congelada** de 1.016 registros, e esse detalhe do
 enunciado muda o desenho da solução. Se um acórdão existe no mundo mas não está
 ali, para efeito do desafio ele não existe. Isso torna o problema decidível, e
 é o que permite resolver por índice em vez de por busca aberta.
@@ -106,7 +109,7 @@ flowchart LR
     N --> C
     C --> F["<b>features.py</b><br/>confiança"]
     F --> J["JSON<br/>schema 1.2"]
-    B[("base canônica<br/>1.018 registros")] -.-> N
+    B[("base canônica<br/>1.016 registros")] -.-> N
 
     style T fill:#EFEFEF,stroke:#8A97AD
     style J fill:#DCE8F2,stroke:#1F2A44
@@ -131,7 +134,7 @@ classe tem duas vias:
   o que não é processo: `DJe`, `fls.`, `OAB`, `Lei`, `Evento`, siglas de estado
   e numeração de documento administrativo.
 
-A segunda via existe porque a primeira é sempre incompleta. Minerando os 1.018
+A segunda via existe porque a primeira é sempre incompleta. Minerando os 1.016
 registros da base aparecem classes reais que nenhum dos 26 documentos de
 desenvolvimento usa: `APM` com 1.898 ocorrências, `IPM` com 890, além de
 `IRDR`, `EAREsp` e `RRAg`. A [Figura 2](#robustez) mostra o quanto isso importa.
@@ -527,7 +530,7 @@ medição da solução, e as ferramentas que produzem insumos para as duas.
 run.py                    entrada da submissão, só biblioteca padrão
 verifica.py               roda a bateria inteira
 
-cacador/                  A SOLUÇÃO
+baqueano/                  A SOLUÇÃO
   extract.py                acha os spans de citação
   canon.py                  índice da base canônica
   classify.py               tabela de decisão do enunciado
@@ -555,7 +558,7 @@ ferramentas/              INSUMOS
 
 Duas regras de dependência valem aqui. Nenhum script importa de outro script:
 o que era compartilhado virou `avaliacao/metrica.py` e
-`avaliacao/amostragem.py`. E `cacador/` não importa nada de `avaliacao/` nem de
+`avaliacao/amostragem.py`. E `baqueano/` não importa nada de `avaliacao/` nem de
 `ferramentas/`, de modo que a submissão não arrasta a infraestrutura de teste.
 
 ---

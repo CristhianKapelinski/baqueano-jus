@@ -325,7 +325,7 @@ class BaseCanonica:
             if row is None or row[2] != 'dispositivo':
                 raise RuntimeError(
                     f'dispositivo {i} nao esta mais na base como esperado - '
-                    'a cobertura mudou, revise cacador.canon.DISPOSITIVOS')
+                    'a cobertura mudou, revise baqueano.canon.DISPOSITIVOS')
             self.dispositivos[(cod, art)] = {'documento_id': row[0], 'id': row[1]}
         n = self.con.execute(
             "SELECT COUNT(*) FROM documentos WHERE natureza='dispositivo'").fetchone()[0]

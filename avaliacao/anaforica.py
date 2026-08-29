@@ -9,7 +9,7 @@ extrator marca uma delas, e falso positivo comprovado, nao suposto.
 Isto e o que o conjunto sintetico nao consegue medir: la, as frases anaforicas
 foram copiadas do gabarito observado, entao o teste seria circular.
 """
-from cacador.extract import extrai
+from baqueano.extract import extrai
 
 # --- positivos: referencia a autoridade juridica sem identificador ---------
 POSITIVOS = [

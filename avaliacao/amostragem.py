@@ -8,9 +8,9 @@ import pathlib
 
 import numpy as np
 
-from cacador.classify import classifica
-from cacador.extract import extrai
-from cacador.features import vetor
+from baqueano.classify import classifica
+from baqueano.extract import extrai
+from baqueano.features import vetor
 
 from .gabarito import carrega, ids_aceitos
 from .metrica import alinha

@@ -18,10 +18,10 @@ import collections
 import random
 import re
 
-from cacador.canon import BaseCanonica, PARSERS
-from cacador.classify import classifica
-from cacador.extract import extrai
-from cacador.normalize import digitos, variantes_cnj
+from baqueano.canon import BaseCanonica, PARSERS
+from baqueano.classify import classifica
+from baqueano.extract import extrai
+from baqueano.normalize import digitos, variantes_cnj
 
 # Um numero, do jeito que aparece no corpo de um acordao.
 NUM_NO_TEXTO = re.compile(r'\d[\d.\s–-]{4,30}\d')

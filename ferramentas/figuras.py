@@ -26,8 +26,8 @@ def mede():
     from avaliacao import ablacao
     from avaliacao.metrica import DEV, HOLDOUT
     from avaliacao.ruido import mede as escore
-    from cacador.canon import BaseCanonica
-    import cacador.extract as ex
+    from baqueano.canon import BaseCanonica
+    import baqueano.extract as ex
 
     base = BaseCanonica()
     docs = DEV + HOLDOUT

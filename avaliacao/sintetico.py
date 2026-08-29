@@ -7,8 +7,8 @@ import pandas as pd
 
 from .gabarito import carrega
 
-from cacador.canon import BaseCanonica
-from cacador.pipeline import processa_documento
+from baqueano.canon import BaseCanonica
+from baqueano.pipeline import processa_documento
 from .metrica import alinha
 
 

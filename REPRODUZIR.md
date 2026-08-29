@@ -17,11 +17,11 @@ pesos, chamada de rede ou dependência de GPU.
 ## Docker
 
 ```bash
-docker build -t cacador .
+docker build -t baqueano .
 docker run --rm \
   -v /caminho/material_desafio_jusbrasil_bracis:/dados:ro \
   -v "$PWD/saida":/saida \
-  cacador
+  baqueano
 ```
 
 ## Modelos
@@ -29,7 +29,7 @@ docker run --rm \
 **Nenhum.** A solução é simbólica: extração por forma jurídica, resolução
 contra a base canônica distribuída pela organização, e a tabela de decisão do
 enunciado. O único componente ajustado é a calibração da confiança — uma
-regressão logística de 27 pesos, versionada em `cacador/calibracao.py` e
+regressão logística de 27 pesos, versionada em `baqueano/calibracao.py` e
 regenerável com:
 
 ```bash

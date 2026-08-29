@@ -21,7 +21,7 @@ import re
 import unicodedata
 from pathlib import Path
 
-from cacador.canon import BaseCanonica
+from baqueano.canon import BaseCanonica
 
 # --------------------------------------------------------------------------
 # inventario de superficie

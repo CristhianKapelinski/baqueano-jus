@@ -18,10 +18,10 @@ import collections
 import random
 import re
 
-from cacador.canon import BaseCanonica
-from cacador.classify import classifica
-from cacador.extract import extrai
-from cacador.normalize import digitos
+from baqueano.canon import BaseCanonica
+from baqueano.classify import classifica
+from baqueano.extract import extrai
+from baqueano.normalize import digitos
 
 NUM = re.compile(r'\d[\d.\s–-]{4,30}\d')
 E_LEI = re.compile(r'(?:lei|decreto|s[úu]mula|art(?:igo)?s?\.?|R\$)\s*'

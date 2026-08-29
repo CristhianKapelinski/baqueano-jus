@@ -11,8 +11,8 @@ depende do formato, que e o que se quer.
 import contextlib
 import random
 
-import cacador.extract as ex
-from cacador.canon import BaseCanonica
+import baqueano.extract as ex
+from baqueano.canon import BaseCanonica
 
 from .metrica import DEV, HOLDOUT
 from .ruido import mede
@@ -25,7 +25,7 @@ SEMENTES = 5
 def vocabulario(classes):
     """Roda o bloco com CLASSES reduzido e devolve o modulo ao estado original.
 
-    A ablacao precisa trocar expressoes ja compiladas dentro de cacador.extract.
+    A ablacao precisa trocar expressoes ja compiladas dentro de baqueano.extract.
     Feita solta, a troca deixa o modulo corrompido se algo falhar no meio; por
     isso vive num contexto que restaura sempre, inclusive em excecao.
     """

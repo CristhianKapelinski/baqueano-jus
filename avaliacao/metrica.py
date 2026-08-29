@@ -15,8 +15,8 @@ import pandas as pd
 
 from .gabarito import carrega
 
-from cacador.canon import BaseCanonica
-from cacador.pipeline import processa_documento
+from baqueano.canon import BaseCanonica
+from baqueano.pipeline import processa_documento
 
 DEV = [f'gen_n{n}_{i:03d}' for n in (1, 2) for i in range(1, 8)]
 HOLDOUT = [f'gen_n{n}_{i:03d}' for n in (1, 2) for i in range(8, 14)]

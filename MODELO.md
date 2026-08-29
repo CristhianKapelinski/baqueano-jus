@@ -18,7 +18,7 @@ Duas consequências para a verificação:
   seria a ordem de iteração de conjuntos.
 
 O único componente ajustado a partir de dados é a constante de confiança, um
-número escalar versionado em `cacador/calibracao.py` e regenerável com
+número escalar versionado em `baqueano/calibracao.py` e regenerável com
 `python -m ferramentas.confianca`.
 
 ## Envelope de execução

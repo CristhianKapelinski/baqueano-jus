@@ -26,6 +26,6 @@ ENV PYTHONHASHSEED=0 \
 # Contrato de execucao do desafio:
 #   docker run --rm --network none \
 #     -v /caminho/dados:/data:ro -v /caminho/saida:/data/out \
-#     cacador --input /data/in --output /data/out
+#     baqueano --input /data/in --output /data/out
 ENTRYPOINT ["python", "run.py"]
 CMD ["--input", "/data/in", "--output", "/data/out"]

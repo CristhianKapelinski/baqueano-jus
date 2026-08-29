@@ -15,8 +15,8 @@ import sys
 import unicodedata
 from pathlib import Path
 
-from cacador.canon import BaseCanonica
-from cacador.pipeline import ESQUEMA, processa_documento
+from baqueano.canon import BaseCanonica
+from baqueano.pipeline import ESQUEMA, processa_documento
 
 CHAVES_DO_CONTRATO = ('id', 'inicio', 'fim', 'trecho', 'tipo', 'classificacao',
                       'resolucao', 'confianca')
