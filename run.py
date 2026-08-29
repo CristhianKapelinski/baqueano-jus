@@ -22,6 +22,23 @@ CHAVES_DO_CONTRATO = ('id', 'inicio', 'fim', 'trecho', 'tipo', 'classificacao',
                       'resolucao', 'confianca')
 
 
+def _acha_base(entrada):
+    """Localiza o desafio1_bracis.db sem depender de rede nem de caminho fixo.
+
+    Na verificacao a base de referencia e montada pela organizacao, e o contrato
+    de execucao so fixa --input e --output. Procuramos no lugar mais provavel
+    (ao lado da entrada) antes de cair no symlink de desenvolvimento.
+    """
+    candidatos = [Path(entrada).parent / 'desafio1_bracis.db',
+                  Path(entrada) / 'desafio1_bracis.db',
+                  Path('/data') / 'desafio1_bracis.db',
+                  Path(__file__).parent / 'dados' / 'desafio1_bracis.db']
+    for c in candidatos:
+        if c.exists():
+            return str(c)
+    return None
+
+
 def _le(arq, avisos):
     """Le o documento, substituindo byte invalido em vez de desistir dele.
 
@@ -77,15 +94,25 @@ def _confere_encoding(texto, doc, arq):
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('entrada', help='pasta com os .txt')
-    ap.add_argument('saida', help='pasta onde escrever os .json')
+    ap = argparse.ArgumentParser(
+        description='Verificador de citacoes juridicas. Aceita o contrato fixo do '
+                    'desafio (--input/--output) e tambem argumentos posicionais.')
+    ap.add_argument('entrada', nargs='?', help='pasta com os .txt')
+    ap.add_argument('saida', nargs='?', help='pasta onde escrever os .json')
+    ap.add_argument('--input', dest='entrada_flag', help='pasta com os .txt')
+    ap.add_argument('--output', dest='saida_flag', help='pasta onde escrever os .json')
     ap.add_argument('--db', default=None, help='caminho do desafio1_bracis.db')
-    ap.add_argument('--submissao', default=None, help='escreve tambem o CSV do Kaggle')
+    ap.add_argument('--submissao', default=None, help='escreve tambem o CSV de submissao')
     a = ap.parse_args()
 
-    base = BaseCanonica(a.db) if a.db else BaseCanonica()
-    entrada, saida = Path(a.entrada), Path(a.saida)
+    origem = a.entrada_flag or a.entrada
+    destino = a.saida_flag or a.saida
+    if not origem or not destino:
+        ap.error('informe as pastas de entrada e saida, por posicao ou por '
+                 '--input/--output')
+    caminho_db = a.db or _acha_base(origem)
+    base = BaseCanonica(caminho_db) if caminho_db else BaseCanonica()
+    entrada, saida = Path(origem), Path(destino)
     saida.mkdir(parents=True, exist_ok=True)
 
     arquivos = sorted(entrada.glob('*.txt'))

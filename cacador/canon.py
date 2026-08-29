@@ -200,6 +200,25 @@ def codigo_do_diploma(trecho):
 
 Feito = collections.namedtuple('Feito', 'chave registros')
 
+# Classe processual escrita no cabecalho do acordao. Dois recursos sobre o mesmo
+# processo (o REsp e os embargos de divergencia nele) compartilham o numero e
+# por isso caem no mesmo feito; o que os separa e a classe.
+_CLASSE_CABECALHO = re.compile(
+    r'(embargos\s+de\s+diverg[êe]ncia|embargos\s+de\s+declara[çc][ãa]o|'
+    r'agravo\s+interno|agravo\s+regimental|agravo\s+em\s+recurso\s+especial|'
+    r'recurso\s+especial\s+eleitoral|recurso\s+especial|recurso\s+extraordin[áa]rio|'
+    r'recurso\s+de\s+revista|recurso\s+em\s+mandado\s+de\s+seguran[çc]a|'
+    r'recurso\s+em\s+habeas\s+corpus|habeas\s+corpus|mandado\s+de\s+seguran[çc]a|'
+    r'reclama[çc][ãa]o|apela[çc][ãa]o|recurso\s+em\s+sentido\s+estrito|'
+    r'agravo\s+de\s+instrumento|a[çc][ãa]o\s+rescis[óo]ria|representa[çc][ãa]o)',
+    re.I)
+
+
+def classe_do_cabecalho(texto, janela=600):
+    """Classes processuais nomeadas no cabecalho, em ordem de aparicao."""
+    vista = sem_acento(texto[:janela]).lower()
+    return [sem_acento(m.group()).lower() for m in _CLASSE_CABECALHO.finditer(vista)]
+
 
 # Numero de processo no texto, para a checagem posicional. Data e paginacao
 # ficam de fora - elas vem antes do identificador e o mascarariam.
@@ -246,7 +265,8 @@ def _posicao_no_cabecalho(texto, frase, janela, tribunal=None):
 
 
 class BaseCanonica:
-    def __init__(self, db=DB_PADRAO):
+    def __init__(self, db=None):
+        db = db or DB_PADRAO
         self.con = sqlite3.connect(db)
         self.acordaos = collections.defaultdict(list)   # (numero, tribunal) -> [reg]
         self.por_numero = collections.defaultdict(list)  # numero -> [(tribunal, [reg])]
@@ -286,6 +306,13 @@ class BaseCanonica:
         # melhor do que depender da ordem de leitura do SQLite.
         for regs in self.acordaos.values():
             regs.sort(key=lambda r: r['documento_id'], reverse=True)
+        # a classe do cabecalho e o que desempata dois recursos do mesmo processo
+        for regs in self.acordaos.values():
+            if len(regs) > 1:
+                for r in regs:
+                    texto = self.con.execute(
+                        "SELECT texto FROM documentos WHERE id=?", (r['id'],)).fetchone()[0]
+                    r['classes'] = classe_do_cabecalho(texto)
         vistos = set()
         for (n, trib), regs in self.acordaos.items():
             self.por_numero[n].append((trib, regs))

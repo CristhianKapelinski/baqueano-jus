@@ -9,6 +9,7 @@
 import re
 
 from .canon import codigo_do_diploma
+from .normalize import texto_canonico as _tc
 from .normalize import cadeias_de_digitos, texto_canonico
 
 # Classe processual -> tribunal. So entram as classes privativas de um tribunal;
@@ -57,6 +58,25 @@ def _tribunais_do_cnj(cadeias):
 def _tribunal_explicito(trecho):
     m = re.search(r'\b(STF|STJ|TSE|TST|STM)\b', trecho.upper())
     return {m.group(1)} if m else set()
+
+
+def _melhor_registro(registros, contexto):
+    """Entre registros do mesmo feito, escolhe o que casa a classe processual.
+
+    Um mesmo numero de processo pode indexar o recurso especial e os embargos
+    de divergencia opostos nele. A citacao diz qual dos dois e; o cabecalho do
+    registro tambem. Sem esse desempate a escolha vira ordem de identificador,
+    que acerta por acaso.
+    """
+    if len(registros) == 1:
+        return registros[0]
+    alvo = texto_canonico(contexto)
+    melhor, pontos = registros[0], -1
+    for r in registros:
+        p = sum(len(c) for c in r.get('classes', ()) if c in alvo)
+        if p > pontos:
+            melhor, pontos = r, p
+    return melhor
 
 
 def classifica(span, base):
@@ -121,7 +141,9 @@ def classifica(span, base):
             diag['por_fts'] = bool(feitos)
         diag['n_feitos'] = len(feitos)
         if len(feitos) == 1:
-            return 'real', str(feitos[0].registros[0]['id']), 0.90, diag
+            reg = _melhor_registro(feitos[0].registros, contexto)
+            diag['n_registros'] = len(feitos[0].registros)
+            return 'real', str(reg['id']), 0.90, diag
         if not feitos:
             return 'inventada', None, 0.85, diag
         return 'incompleta', None, 0.55, diag

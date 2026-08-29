@@ -18,7 +18,7 @@ def modulo(nome, *args):
 SUITES = [
     ('goldenset (26 documentos distribuidos)',
      modulo('avaliacao.metrica', '--conjunto', 'tudo'), False),
-    ('acervo real (citacoes dentro dos 1.018 registros)',
+    ('acervo real (citacoes dentro do acervo)',
      modulo('avaliacao.acervo', '--amostra', '0'), True),
     ('auditoria independente do link (sem o leitor de cabecalho)',
      modulo('avaliacao.auditoria', '--fontes', '120', '--amostra', '80'), True),

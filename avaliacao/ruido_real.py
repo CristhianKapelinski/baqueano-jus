@@ -19,6 +19,8 @@ import re
 
 import pandas as pd
 
+from .gabarito import carrega
+
 LIMIAR = 0.88          # similaridade minima para considerar duas frases a mesma
 MIN, MAX = 40, 170     # tamanho de frase que vale comparar
 
@@ -40,7 +42,7 @@ def _frases(nivel, gabarito):
 
 
 def mede():
-    g = pd.read_csv('dados/goldenset.csv')
+    g = carrega()
     limpas = list(dict.fromkeys(_frases(1, g)))
     caracteres = diferentes = pares = 0
     for suja in _frases(2, g):

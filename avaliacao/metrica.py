@@ -13,6 +13,8 @@ import sys
 
 import pandas as pd
 
+from .gabarito import carrega
+
 from cacador.canon import BaseCanonica
 from cacador.pipeline import processa_documento
 
@@ -48,7 +50,7 @@ def alinha(gold, pred):
 
 
 def avalia(docs, base, verboso=False):
-    g = pd.read_csv('dados/goldenset.csv')
+    g = carrega()
     tot = collections.Counter()
     peso_tot = peso_ok = 0.0
     mat = collections.Counter()

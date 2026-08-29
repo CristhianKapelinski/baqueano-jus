@@ -11,6 +11,8 @@ import sys
 
 import pandas as pd
 
+from .gabarito import carrega
+
 from cacador.canon import BaseCanonica
 from cacador.pipeline import processa_documento
 from .metrica import DEV, HOLDOUT, alinha
@@ -43,7 +45,7 @@ def suja(texto, taxa, rng):
 
 def mede(docs, base, taxa, semente):
     rng = random.Random(semente)
-    g = pd.read_csv('dados/goldenset.csv')
+    g = carrega()
     peso_tot = peso_ok = 0.0
     for doc in docs:
         texto = open(f'dados/txt/{doc}.txt', encoding='utf-8').read()

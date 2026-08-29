@@ -2,6 +2,8 @@
 """Lista os spans que o extrator perdeu e os que inventou, no conjunto pedido."""
 import sys, collections
 import pandas as pd
+
+from .gabarito import carrega
 from cacador.canon import BaseCanonica
 from cacador.pipeline import processa_documento
 from .metrica import DEV, HOLDOUT, alinha
@@ -9,7 +11,7 @@ from .metrica import DEV, HOLDOUT, alinha
 conj = sys.argv[1] if len(sys.argv) > 1 else 'dev'
 docs = {'dev': DEV, 'holdout': HOLDOUT, 'tudo': DEV + HOLDOUT}[conj]
 base = BaseCanonica()
-g = pd.read_csv('dados/goldenset.csv')
+g = carrega()
 perdidos, falsos = [], []
 for doc in docs:
     texto = open(f'dados/txt/{doc}.txt', encoding='utf-8').read()

@@ -5,6 +5,8 @@ import collections
 
 import pandas as pd
 
+from .gabarito import carrega
+
 from cacador.canon import BaseCanonica
 from cacador.pipeline import processa_documento
 from .metrica import alinha
@@ -16,7 +18,7 @@ def main():
     ap.add_argument('--erros', type=int, default=0)
     a = ap.parse_args()
     base = BaseCanonica()
-    g = pd.read_csv(f'{a.dir}/goldenset.csv', dtype={'id_canonico': str})
+    g = carrega(a.dir)
     docs = sorted(set(g.documento_id))
     tot = collections.Counter(); mat = collections.Counter()
     peso_t = peso_ok = 0.0
