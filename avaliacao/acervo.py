@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Avalia o extrator nos 1.018 registros da base - sem gabarito, em escala.
+"""Avalia o extrator nos 1.016 registros da base - sem gabarito, em escala.
 
 Os acordaos do acervo citam uns aos outros o tempo todo, em prosa juridica de
 verdade (nao sintetica). Isso da um conjunto de teste ~40x maior que o
@@ -65,6 +65,32 @@ def _link_confere(base, id_canonico, digitos_citados):
         return False
     proprio = PARSERS[linha[0]](linha[1]) or ''
     return proprio.lstrip('0') == digitos_citados.lstrip('0')
+
+
+def posicoes_por_tribunal(base):
+    """Onde, dentro de cada acordao, aparece o numero PROPRIO e o numero CITADO.
+
+    E a medicao que sustenta a heuristica de posicao do resolvedor, e a fonte da
+    figura correspondente do artigo. Para cada acordao registra a posicao da
+    primeira ocorrencia do seu proprio numero e a de cada ocorrencia de numero
+    que resolve para outro feito do acervo - as mesmas 627 citacoes contadas
+    por `main`, para que figura e texto falem da mesma populacao.
+    """
+    proprio = collections.defaultdict(list)
+    citado = collections.defaultdict(list)
+    linhas = base.con.execute(
+        "SELECT tribunal,texto FROM documentos WHERE natureza='acordao'").fetchall()
+    for trib, texto in linhas:
+        meu = PARSERS[trib](texto)
+        if meu:
+            for m in NUM_NO_TEXTO.finditer(texto):
+                d = digitos(m.group())
+                if d.lstrip('0') == meu.lstrip('0'):
+                    proprio[trib].append(m.start())
+                    break
+        for ini, _, _ in ocorrencias_resolviveis(texto, base, meu, trib):
+            citado[trib].append(ini)
+    return {'proprio': dict(proprio), 'citado': dict(citado)}
 
 
 def main():

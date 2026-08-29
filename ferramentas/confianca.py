@@ -10,7 +10,7 @@ Duas escolhas de desenho importam para a conclusao ser honesta:
 * A validacao cruzada e agrupada por DOCUMENTO, nunca por citacao, para nao
   vazar contexto de um documento para ele mesmo.
 * A vencedora so desbanca a constante se a vantagem sobreviver a um bootstrap
-  por documento. Com 228 predicoes e 7 erros, diferencas de milesimo no Brier
+  por documento. Com 228 predicoes e 5 erros, diferencas de milesimo no Brier
   cabem inteiras dentro do ruido de amostragem, e escolher pela media seria
   escolher pelo acaso.
 
@@ -20,8 +20,6 @@ ao ajuste mais erros do que o goldenset oferece.
 """
 import argparse
 import collections
-
-import numpy as np
 
 import numpy as np
 
@@ -90,16 +88,17 @@ def _bootstrap(referencia, candidato, y, grupos, reamostras=4000, semente=0):
         idx = np.concatenate([indices[d] for d in rng.choice(docs, len(docs), replace=True)])
         difs[k] = brier(referencia[idx], y[idx]) - brier(candidato[idx], y[idx])
     lo, hi = np.percentile(difs, [2.5, 97.5])
-    return lo, hi, float((difs > 0).mean())
+    return lo, hi, float((difs > 0).mean()), difs
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--margem', type=float, default=0.01,
-                    help='quanto abaixo da acuracia medida emitir a constante, '
-                         'para nao ficar superconfiante no conjunto cego')
-    a = ap.parse_args()
-    base = BaseCanonica()
+def estrategias(base=None):
+    """Monta as candidatas de confianca sobre o unico dado real.
+
+    Devolve `(cand, y, grupos, acc)`. Vive fora de `main` porque a figura do
+    bootstrap precisa exatamente das mesmas candidatas: se a figura recalculasse
+    por conta propria, ela poderia divergir do numero impresso no relatorio.
+    """
+    base = base or BaseCanonica()
     X, y, grupos = amostras(base, 'dados/txt', 'dados/goldenset.csv')
     acc = y.mean()
     iF = [NOMES.index(f'forma={f}') for f in FORMAS]
@@ -107,8 +106,6 @@ def main():
     forma = np.array([FORMAS[int(np.argmax(x[iF]))] for x in X])
     classe = np.array([CLASSES[int(np.argmax(x[iC]))] for x in X])
 
-    print(f'dado real: {len(y)} predicoes, {int((1 - y).sum())} erradas, '
-          f'acerto {acc:.4f}\n')
     cand = {
         'constante': np.full(len(y), acc),
         'sintetico, recentrado': _do_sintetico(base, X, acc),
@@ -118,6 +115,29 @@ def main():
             np.array([f'{f}|{c}' for f, c in zip(forma, classe)]), y, grupos, acc),
         'regressao logistica': cv_logistica(X, y, grupos),
     }
+    return cand, y, grupos, acc
+
+
+def dados_bootstrap(base=None):
+    """Reamostragem da melhor ajustada contra a constante, pronta pra figura."""
+    cand, y, grupos, acc = estrategias(base)
+    ajustadas = {k: v for k, v in cand.items() if k != 'constante'}
+    desafiante = min(ajustadas, key=lambda k: brier(ajustadas[k], y))
+    lo, hi, vitorias, difs = _bootstrap(cand['constante'], ajustadas[desafiante], y, grupos)
+    return {'difs': difs.tolist(), 'lo': float(lo), 'hi': float(hi),
+            'media': float(difs.mean()), 'vitorias': vitorias, 'desafiante': desafiante}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--margem', type=float, default=0.01,
+                    help='quanto abaixo da acuracia medida emitir a constante, '
+                         'para nao ficar superconfiante no conjunto cego')
+    a = ap.parse_args()
+    base = BaseCanonica()
+    cand, y, grupos, acc = estrategias(base)
+    print(f'dado real: {len(y)} predicoes, {int((1 - y).sum())} erradas, '
+          f'acerto {acc:.4f}\n')
     print(f'{"estrategia":26s} {"Brier":>9s} {"ECE":>9s} {"AUC":>7s} {"vs constante":>14s}')
     ref = brier(cand['constante'], y)
     for nome, p in cand.items():
@@ -127,7 +147,7 @@ def main():
     # unica comparacao que decide alguma coisa.
     ajustadas = {k: v for k, v in cand.items() if k != 'constante'}
     desafiante = min(ajustadas, key=lambda k: brier(ajustadas[k], y))
-    lo, hi, vitorias = _bootstrap(cand['constante'], ajustadas[desafiante], y, grupos)
+    lo, hi, vitorias, _ = _bootstrap(cand['constante'], ajustadas[desafiante], y, grupos)
     print(f'\nmelhor ajustada: {desafiante}')
     print(f'vantagem sobre a constante: {brier(cand["constante"], y) - brier(ajustadas[desafiante], y):+.5f}'
           f'  IC 95% [{lo:+.5f}, {hi:+.5f}]  vence em {vitorias:.0%} das reamostras')
@@ -143,7 +163,7 @@ def main():
              '"""Gerado por escolhe_confianca.py - NAO editar a mao.\n\n'
              'Nenhuma estrategia ajustada superou uma constante COM FOLGA neste\n'
              'conjunto. Isso nao diz que nao existe sinal: diz que 228 predicoes\n'
-             'com 7 erros nao tem resolucao para separar uma vantagem de\n'
+             'com 5 erros nao tem resolucao para separar uma vantagem de\n'
              'milesimo do ruido de amostragem. Ate haver mais dado real\n'
              'rotulado, a constante e a escolha defensavel. Emitimos a acuracia\n'
              'medida com uma margem para baixo, porque errar por excesso de\n'

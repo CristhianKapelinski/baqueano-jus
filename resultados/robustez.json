@@ -2,76 +2,76 @@
  "ruido": [
   [
    0.0,
-   0.9790419161676647
+   0.9910179640718563
   ],
   [
    0.005,
-   0.9510978043912175
+   0.9630738522954091
   ],
   [
    0.01,
-   0.9461077844311377
+   0.9620758483033932
   ],
   [
    0.02,
-   0.9261477045908184
+   0.9281437125748503
   ],
   [
    0.05,
-   0.8283433133732535
+   0.8343313373253493
   ],
   [
    0.1,
-   0.6996007984031936
+   0.7115768463073852
   ]
  ],
  "ablacao_atual": [
   [
    0.0,
-   0.9790419161676647
+   0.9910179640718563
   ],
   [
    0.1,
-   0.9766467065868264
+   0.9886227544910179
   ],
   [
    0.2,
-   0.9724550898203592
+   0.9844311377245509
   ],
   [
    0.3,
-   0.9694610778443113
+   0.9814371257485031
   ],
   [
    0.5,
-   0.9652694610778443
+   0.977245508982036
   ]
  ],
  "ablacao_lista_fechada": [
   [
    0.0,
-   0.967
+   0.9910179640718563
   ],
   [
    0.1,
-   0.949
+   0.9724550898203592
   ],
   [
    0.2,
-   0.916
+   0.9467065868263473
   ],
   [
    0.3,
-   0.896
+   0.9275449101796408
   ],
   [
    0.5,
-   0.81
+   0.8467065868263474
   ]
  ],
  "_procedencia": {
-  "ruido": "stress.py, 3 sementes por ponto, medido agora",
-  "ablacao_atual": "ablacao.py, 5 sementes por ponto, medido agora",
-  "ablacao_lista_fechada": "medido no commit c347c60, antes das ancoras abertas"
+  "ruido": "avaliacao/ruido.py, 3 sementes por ponto",
+  "ablacao_atual": "avaliacao/ablacao.py, 5 sementes por ponto, com ancora aberta",
+  "ablacao_lista_fechada": "idem, com as ancoras abertas desligadas"
  }
 }

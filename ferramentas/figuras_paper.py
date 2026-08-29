@@ -13,7 +13,6 @@ Duas figuras, ambas a partir de dado medido e nao de valor digitado a mao:
   diferenca nao se separa do ruido.
 """
 import collections
-import json
 import math
 import os
 import re
@@ -118,5 +117,12 @@ def bootstrap(dados):
 
 
 if __name__ == '__main__':
-    posicoes(json.load(open('/tmp/posicoes.json')))
-    bootstrap(json.load(open('/tmp/bootstrap.json')))
+    # As duas figuras saem de medicao feita agora, na base que esta no disco:
+    # ler dado gravado antes arriscaria publicar figura de uma rodada anterior.
+    from avaliacao.acervo import posicoes_por_tribunal
+    from baqueano.canon import BaseCanonica
+    from ferramentas.confianca import dados_bootstrap
+
+    base = BaseCanonica()
+    posicoes(posicoes_por_tribunal(base))
+    bootstrap(dados_bootstrap(base))

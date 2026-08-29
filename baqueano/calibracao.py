@@ -3,7 +3,7 @@
 
 Nenhuma estrategia ajustada superou uma constante COM FOLGA neste
 conjunto. Isso nao diz que nao existe sinal: diz que 228 predicoes
-com 7 erros nao tem resolucao para separar uma vantagem de
+com 5 erros nao tem resolucao para separar uma vantagem de
 milesimo do ruido de amostragem. Ate haver mais dado real
 rotulado, a constante e a escolha defensavel. Emitimos a acuracia
 medida com uma margem para baixo, porque errar por excesso de
@@ -11,6 +11,6 @@ confianca custa mais no Brier do que errar por falta.
 """
 
 MODO = "constante"
-CONSTANTE = 0.9593
-# acuracia medida no goldenset: 0.9693; margem aplicada: 0.01
+CONSTANTE = 0.9681
+# acuracia medida no goldenset: 0.9781; margem aplicada: 0.01
 PESOS = None

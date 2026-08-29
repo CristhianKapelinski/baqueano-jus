@@ -35,9 +35,10 @@ def mede():
               else escore(docs, base, 0, 0))
              for t in (0.0, 0.005, 0.01, 0.02, 0.05, 0.10)]
 
-    abl = [(fracao, sum(es) / len(es))
-           for fracao, es in ablacao.curva(base, docs, list(ex.CLASSES))]
-    return {'ruido': ruido, 'ablacao_atual': abl}
+    completo = list(ex.CLASSES)
+    abl = [(f, sum(e) / len(e)) for f, e in ablacao.curva(base, docs, completo, True)]
+    fechada = [(f, sum(e) / len(e)) for f, e in ablacao.curva(base, docs, completo, False)]
+    return {'ruido': ruido, 'ablacao_atual': abl, 'ablacao_lista_fechada': fechada}
 
 
 def eixos(titulo, rot_x, rot_y, xs, ys_min, ys_max):
@@ -129,14 +130,10 @@ if __name__ == '__main__':
         res = json.load(open(caminho))
     else:
         res = mede()
-        # serie historica: medida no commit c347c60, antes das ancoras abertas.
-        # Fica marcada porque o codigo atual nao a reproduz.
-        res['ablacao_lista_fechada'] = [[0.0, 0.967], [0.10, 0.949], [0.20, 0.916],
-                                        [0.30, 0.896], [0.50, 0.810]]
         res['_procedencia'] = {
-            'ruido': 'stress.py, 3 sementes por ponto, medido agora',
-            'ablacao_atual': 'ablacao.py, 5 sementes por ponto, medido agora',
-            'ablacao_lista_fechada': 'medido no commit c347c60, antes das ancoras abertas',
+            'ruido': 'avaliacao/ruido.py, 3 sementes por ponto',
+            'ablacao_atual': 'avaliacao/ablacao.py, 5 sementes por ponto, com ancora aberta',
+            'ablacao_lista_fechada': 'idem, com as ancoras abertas desligadas',
         }
         os.makedirs('resultados', exist_ok=True)
         json.dump(res, open(caminho, 'w'), indent=1)
