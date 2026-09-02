@@ -181,9 +181,13 @@ ANCORA_PROCESSO = re.compile(
 # Linha de cabecalho: 'Assistido: X', 'Processo nº Y', 'Protocolo nº Z'. E a
 # estrutura rotulo/valor que separa o cabecalho do corpo - mais confiavel que
 # procurar a linha do tipo da peca, que se confunde com o nome do orgao.
+# Rotulo de cabecalho: 'Assunto: ...' ou 'Processo nº 123'. A abreviacao de
+# numero so conta quando vem NUMERO depois: sem isso a preposicao 'no' e lida
+# como 'nº' e qualquer linha de prosa que comece com maiuscula vira rotulo
+# ('O raciocinio desenvolvido no acordao recorrido ...').
 LINHA_DE_CABECALHO = re.compile(
     r'^[A-ZÀ-Ú][\wÀ-ÿ.\-]*(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ.\-]*){0,2}'
-    r'(?::|\s+[nN][ºo°.]{1,2})\s*\S')
+    r'(?::\s*\S|\s+[nN][ºo°.]{1,2}\s*\d)')
 
 
 def _fim_do_cabecalho(texto, max_linhas=12):
@@ -343,6 +347,16 @@ _VERBO_FINITO = re.compile(
 _COPULA_ACENTUADA = re.compile(r'\b(?:é|está|estão|são|há)\b')
 _PALAVRA_VAZIA = {'que', 'a', 'o', 'as', 'os', 'de', 'da', 'do', 'em', 'no',
                   'na', 'e', 'ou', 'para', 'por', 'com', 'ao', 'aos', 'se'}
+# A decisao SOB RECURSO nao e citacao: e o objeto do recurso, parte da historia
+# do proprio processo. Nos 26 documentos ela aparece 37 vezes e o gabarito nunca
+# a anota. Reconhecemos pelos dois lados do nucleo - o adjetivo que o qualifica
+# ('acordao recorrido') e a preposicao que o rege ('contra o acordao que...').
+_DECISAO_SOB_RECURSO = re.compile(
+    r'^(?:ac[oó]rd[aã]o|decis[aã]o|senten[çc]a|julgado)\b[^.;]{0,20}?'
+    r'\b(?:recorrid|agravad|impugnad|atacad|hostilizad|combatid|guerread)', re.I)
+_REGENCIA_DE_RECURSO = re.compile(
+    r'\b(?:contra|impugna(?:r|ndo)?|recorre(?:r|u)?|reforma(?:r|ndo)?|'
+    r'ataca(?:r|ndo)?)\s+(?:[oa]s?\s+)?$', re.I)
 _SUFIXO_VERBAL = re.compile(
     r'\b\w{3,}(?:ou|eu|iu|aram|eram|iram|ava|avam|iam|arao|erao|irao)\b')
 
@@ -500,6 +514,18 @@ def extrai(texto):
         # oracao relativa: o sintagma modifica a citacao ANTERIOR, nao e uma
         # citacao nova ('a Rcl 55.626/DF, que bem ilustra a orientacao dominante')
         if re.search(r'\bque\b[^.;]{0,28}$', _norm(texto[max(0, m.start() - 40):m.start()])):
+            continue
+        # linha de rotulo ('Assunto: ...') descreve ESTE documento: o que aparece
+        # ali nao esta sendo invocado como precedente. O teste e a LINHA em que o
+        # sintagma comeca, nao a posicao no documento - um limite de cabecalho
+        # calculado por heuristica engole o texto inteiro quando a peca e curta.
+        linha_ini = texto.rfind('\n', 0, m.start()) + 1
+        linha = texto[linha_ini:texto.find('\n', m.start()) % (len(texto) + 1)]
+        if len(linha) <= 120 and LINHA_DE_CABECALHO.match(linha):
+            continue
+        # a decisao sob recurso e o objeto do processo, nao uma citacao
+        if (_DECISAO_SOB_RECURSO.match(t)
+                or _REGENCIA_DE_RECURSO.search(texto[max(0, m.start() - 30):m.start()])):
             continue
         # aponta para algo, OU esta em posicao de citacao - basta um dos dois
         if not (_TEM_ANCORA.search(n)
