@@ -159,7 +159,12 @@ def cita_real(base, rng):
     marca = '' if classe.endswith('-') else rng.choice(MARCADORES)
     sufixo = rng.choice(SUFIXO_UF).format(uf=rng.choice(UF))
     texto = f'{classe}{"" if classe.endswith("-") else " "}{marca}{formata_numero(num, rng)}{sufixo}'
-    return re.sub(r'  +', ' ', texto), 'real', 'jurisprudencia', str(regs[0]['id'])
+    # Quando o feito tem mais de um registro, o gerador NAO sabe qual e o
+    # canonico - ele so sabe o feito. Gravar `regs[0]` faria o gabarito repetir
+    # a ordem do nosso proprio indice, e a suite passaria a medir essa ordem em
+    # vez da resolucao. Aceitamos qualquer registro do feito.
+    ids = ' '.join(sorted(str(r['id']) for r in regs))
+    return re.sub(r'  +', ' ', texto), 'real', 'jurisprudencia', ids
 
 
 def cita_inventada(base, rng):

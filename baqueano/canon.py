@@ -293,19 +293,17 @@ class BaseCanonica:
                 self.sem_numero.append((did, trib))
                 continue
             reg = {'documento_id': did, 'id': i, 'tribunal': trib, 'ano': ano,
-                   'relator': rel}
+                   'relator': rel, 'texto_len': len(texto)}
             for v in variantes_cnj(n):
                 self.acordaos[(v, trib)].append(reg)
-        # Desempate entre registros do MESMO feito. O enunciado diz que
-        # `id_canonico` e um conjunto e que qualquer id do feito conta como
-        # acerto, mas no goldenset de desenvolvimento 4 das 96 `real` caem num
-        # feito com mais registros do que o gabarito aceita - inclusive um par
-        # de textos byte a byte identicos. Nesses casos nao ha sinal: adotamos
-        # uma ordem deterministica (maior documento_id). Nos dois casos
-        # observados ela acerta, o que com n=2 nao e evidencia de nada; e so
-        # melhor do que depender da ordem de leitura do SQLite.
+        # Desempate entre registros do MESMO feito. O acervo traz o mesmo
+        # acordao transcrito duas vezes, sob ids diferentes, quando a extracao
+        # foi feita em passadas distintas: uma delas perde acentos, troca aspas
+        # e engole trechos curtos. A que ficou MAIS LONGA e a mais completa, e e
+        # ela que serve de registro canonico - criterio de conteudo, defensavel
+        # sem olhar gabarito nenhum, e nao a ordem de leitura do SQLite.
         for regs in self.acordaos.values():
-            regs.sort(key=lambda r: r['documento_id'], reverse=True)
+            regs.sort(key=lambda r: (-r['texto_len'], r['documento_id']))
         # a classe do cabecalho e o que desempata dois recursos do mesmo processo
         for regs in self.acordaos.values():
             if len(regs) > 1:

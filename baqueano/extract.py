@@ -351,6 +351,14 @@ _PALAVRA_VAZIA = {'que', 'a', 'o', 'as', 'os', 'de', 'da', 'do', 'em', 'no',
 # do proprio processo. Nos 26 documentos ela aparece 37 vezes e o gabarito nunca
 # a anota. Reconhecemos pelos dois lados do nucleo - o adjetivo que o qualifica
 # ('acordao recorrido') e a preposicao que o rege ('contra o acordao que...').
+# Metadiscurso: a frase descreve ESTE documento ('a Defensoria apresenta o
+# presente memorial, sintetizando as teses e destacando os precedentes
+# aplicaveis a especie'). A referencia vaga ali diz o que a peca contem, nao
+# invoca autoridade para uma proposicao. Sao 12 frases assim nos 226 documentos
+# medidos e nenhuma carrega citacao anotada.
+_AUTORREFERENCIA = re.compile(
+    r'\b(?:present\w+|referid\w+)\s+'
+    r'(?:memorial|peti[çc][ãa]o|parecer|pe[çc]a|manifesta[çc][ãa]o|raz[õo]es)', re.I)
 _DECISAO_SOB_RECURSO = re.compile(
     r'^(?:ac[oó]rd[aã]o|decis[aã]o|senten[çc]a|julgado)\b[^.;]{0,20}?'
     r'\b(?:recorrid|agravad|impugnad|atacad|hostilizad|combatid|guerread)', re.I)
@@ -526,6 +534,10 @@ def extrai(texto):
         # a decisao sob recurso e o objeto do processo, nao uma citacao
         if (_DECISAO_SOB_RECURSO.match(t)
                 or _REGENCIA_DE_RECURSO.search(texto[max(0, m.start() - 30):m.start()])):
+            continue
+        # frase que fala do proprio documento: descreve conteudo, nao invoca
+        ini_frase = max(texto.rfind('.', 0, m.start()), texto.rfind('\n\n', 0, m.start())) + 1
+        if _AUTORREFERENCIA.search(texto[ini_frase:m.start()]):
             continue
         # aponta para algo, OU esta em posicao de citacao - basta um dos dois
         if not (_TEM_ANCORA.search(n)

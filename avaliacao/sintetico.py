@@ -27,7 +27,7 @@ def main():
         texto = open(f'{a.dir}/txt/{doc}.txt', encoding='utf-8').read()
         gold = [{'inicio': int(r.inicio), 'fim': int(r.fim), 'trecho': str(r.trecho),
                  'classificacao': r.classificacao, 'nivel': int(r.nivel),
-                 'ids': {str(r.id_canonico)} if isinstance(r.id_canonico, str) else set()}
+                 'ids': set(str(r.id_canonico).split()) if isinstance(r.id_canonico, str) else set()}
                 for r in g[g.documento_id == doc].itertuples()]
         pred = processa_documento(texto, base)['citacoes']
         pares, usados = alinha(gold, pred)
