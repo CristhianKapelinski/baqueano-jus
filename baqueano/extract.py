@@ -322,6 +322,8 @@ PISTA_CITACAO = re.compile(
 # um sintagma externo casa e e rejeitado por um filtro, ele ESCONDE um sintagma
 # interno valido ('A tese encontra respaldo em a diretriz jurisprudencial
 # predominante' engolia 'diretriz ...'). Varremos nucleo a nucleo.
+# Emissao da ancora anaforica. Ver o bloco 5 de `extrai`.
+ANCORA_ANAFORICA_ATIVA = False
 INICIO_NUCLEO = re.compile(
     r'\b(?:recentes?\s+|reiterados?\s+|iterativos?\s+)?(?:' + _NUCLEO + r')\b', re.I)
 VAGA_ANAFORICA = re.compile(
@@ -501,7 +503,17 @@ def extrai(texto):
         _add(spans, texto, ini, m.end(), 'jurisprudencia', 'vaga_classe_ano_rel')
 
     # 5. referencias anaforicas (sem qualquer identificador)
-    for inicio in INICIO_NUCLEO.finditer(vista):
+    #
+    # DESLIGADO desde a revisao do gabarito de 04/09/2026. A organizacao retirou
+    # do goldenset as 30 referencias difusas ('jurisprudencia pacifica desta
+    # Corte', 'normas de regencia da materia') e fixou o criterio: so e citacao
+    # quando existe uma decisao concreta por tras dela. Uma referencia sem
+    # tribunal, ano nem relator nao aponta para decisao nenhuma - o que sobrou
+    # no gabarito e coberto por vaga_trib_ano_rel e vaga_classe_ano_rel.
+    #
+    # O reconhecedor fica aqui, e nao apagado, porque o contrato ja mudou duas
+    # vezes: se a organizacao reverter, e uma linha.
+    for inicio in [] if not ANCORA_ANAFORICA_ATIVA else INICIO_NUCLEO.finditer(vista):
         m = VAGA_ANAFORICA.match(vista, inicio.start())
         if m is None:
             continue

@@ -95,12 +95,19 @@ ENCHIMENTO = [
     'Nem se diga que a hipótese comportaria distinção.',
     'Os elementos coligidos aos autos apontam em sentido único.',
 ]
+# Vaga, mas AINDA citacao: nomeia um diploma concreto, so nao diz o artigo.
+# Sobreviveu a revisao de 04/09/2026 do gabarito, nos dois documentos em que
+# aparece.
+VAGAS_COM_FONTE = [
+    ('artigo correspondente do Código de Processo Civil', 'lei'),
+]
+# Difusas: nao apontam para norma nem decisao nenhuma. A revisao de 04/09/2026
+# tirou as 30 ocorrencias delas do gabarito. Continuam no texto como distrator.
 ANAFORICAS = [
     ('normas de regência da matéria', 'lei'),
     ('legislação de regência da matéria', 'lei'),
     ('dispositivo legal de regência', 'lei'),
     ('dispositivo constitucional invocado na origem', 'lei'),
-    ('artigo correspondente do Código de Processo Civil', 'lei'),
     ('lei que disciplina a prescrição no caso', 'lei'),
     ('preceito de regência da espécie', 'lei'),
     ('jurisprudência pacífica desta Corte', 'jurisprudencia'),
@@ -211,8 +218,15 @@ def cita_lei(base, rng):
 
 
 def cita_vaga(base, rng, relatores):
-    if rng.random() < 0.45:
-        texto, tipo = rng.choice(ANAFORICAS)
+    """Referencia vaga que AINDA e citacao: tribunal, ano e relator identificados.
+
+    A revisao do gabarito de 04/09/2026 tirou do escopo a referencia difusa
+    ('jurisprudencia pacifica desta Corte'), porque nao ha decisao concreta por
+    tras dela. Ela continua sendo gerada, mas como enchimento nao anotado - ver
+    `gera_documento` -, que e o papel que passou a ter: distrator.
+    """
+    if rng.random() < 0.12:
+        texto, tipo = rng.choice(VAGAS_COM_FONTE)
         return texto, 'incompleta', tipo, None
     trib = rng.choice(list(CLASSES_POR_TRIBUNAL))
     molde = rng.choice(MOLDES_VAGOS)
@@ -287,6 +301,10 @@ def gera_documento(base, rng, relatores, nivel, ruido=0.006):
             if rng.random() < 0.3:
                 escreve(f'Confira-se, ainda, às fls. {rng.randint(100, 900)}/'
                         f'{rng.randint(100, 900)}. ')
+            # referencia difusa como DISTRATOR: entra no texto, fica fora do
+            # gabarito. Marca-la e falso positivo desde a revisao de 04/09.
+            if rng.random() < 0.35:
+                escreve(rng.choice(VEICULOS) + ' ' + rng.choice(ANAFORICAS)[0] + '. ')
         escreve('\n\n')
     texto = '\n'.join(partes) + '\n' + ''.join(corpo)
     for c in gabarito:                      # confere que o span bate mesmo
