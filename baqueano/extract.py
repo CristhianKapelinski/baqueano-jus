@@ -228,7 +228,11 @@ _INCISOS = r'(?:\s*,?\s*(?:inciso\s+|al[íi]nea\s+)?[IVXLC]+\b|\s*,?\s*§+\s*\d+
 _DIPLOMA_TAIL = r'(?:(?!\.\s+[A-ZÀ-Ú])(?!\n\s*\n)[^,;()])'
 ARTIGO = re.compile(
     r'\bart(?:igo)?s?\.?\s*'
-    r'(\d{1,4}(?:\.\d{3})*' + _ORDINAL + r'|correspondente)'
+    # So ha citacao de lei quando o ARTIGO esta identificado. 'artigo
+    # correspondente do Codigo de Processo Civil' nomeia o diploma e nao a
+    # norma: saiu do gabarito na versao final de 15/09, junto com as demais
+    # referencias que nao apontam para uma fonte especifica.
+    r'(\d{1,4}(?:\.\d{3})*' + _ORDINAL + r')'
     + _INCISOS +
     r'\s*,?\s*d[oaeu]s?\s+(' + _DIPLOMA_TAIL + r'{2,60})',
     re.I)

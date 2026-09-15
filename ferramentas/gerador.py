@@ -95,15 +95,10 @@ ENCHIMENTO = [
     'Nem se diga que a hipótese comportaria distinção.',
     'Os elementos coligidos aos autos apontam em sentido único.',
 ]
-# Vaga, mas AINDA citacao: nomeia um diploma concreto, so nao diz o artigo.
-# Sobreviveu a revisao de 04/09/2026 do gabarito, nos dois documentos em que
-# aparece.
-VAGAS_COM_FONTE = [
-    ('artigo correspondente do Código de Processo Civil', 'lei'),
-]
 # Difusas: nao apontam para norma nem decisao nenhuma. A revisao de 04/09/2026
 # tirou as 30 ocorrencias delas do gabarito. Continuam no texto como distrator.
 ANAFORICAS = [
+    ('artigo correspondente do Código de Processo Civil', 'lei'),
     ('normas de regência da matéria', 'lei'),
     ('legislação de regência da matéria', 'lei'),
     ('dispositivo legal de regência', 'lei'),
@@ -225,9 +220,6 @@ def cita_vaga(base, rng, relatores):
     tras dela. Ela continua sendo gerada, mas como enchimento nao anotado - ver
     `gera_documento` -, que e o papel que passou a ter: distrator.
     """
-    if rng.random() < 0.12:
-        texto, tipo = rng.choice(VAGAS_COM_FONTE)
-        return texto, 'incompleta', tipo, None
     trib = rng.choice(list(CLASSES_POR_TRIBUNAL))
     molde = rng.choice(MOLDES_VAGOS)
     texto = molde.format(trib=trib, ano=rng.randint(2015, 2026),
