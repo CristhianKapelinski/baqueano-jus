@@ -11,6 +11,6 @@ confianca custa mais no Brier do que errar por falta.
 """
 
 MODO = "constante"
-CONSTANTE = 0.99
-# acuracia medida no goldenset: 1.0000; margem aplicada: 0.01
+CONSTANTE = 1.0
+# acuracia medida no goldenset: 1.0000; margem aplicada: 0.0
 PESOS = None
