@@ -136,7 +136,7 @@ Ele faz o contrário. Acha primeiro os números que parecem processo, depois
 pergunta se à esquerda deles há uma classe processual. O reconhecimento da
 classe tem duas vias:
 
-- **Lista fechada.** Um inventário de 85 classes processuais conhecidas, de
+- **Lista fechada.** Um inventário de 86 classes processuais conhecidas, de
   `REsp` a `Recurso em Sentido Estrito`.
 - **Âncora aberta.** Quando a lista falha, vale um núcleo nominal
   (`Agravo`, `Recurso`, `Embargos`, `Suspensão` e outros vinte) seguido dos seus
@@ -149,9 +149,16 @@ classes reais que nenhum dos 26 documentos de desenvolvimento usa: contando a
 sigla como palavra, `APM` ocorre 2.498 vezes, `IPM` 1.705, `IRDR` 732, `RRAg`
 254 e `EAREsp` 169. A [Figura 2](#robustez) mostra o quanto isso importa.
 
-O ruído do nível 2 troca letra por dígito dentro do identificador, e o
-enunciado garante que dígito nunca vira outro dígito. O extrator aceita essas
-letras dentro do número e expande as leituras possíveis na hora de consultar.
+O ruído do nível 2 põe dígito dentro de palavra (`RE5p`, `Eleit0ral`) e letra
+dentro de número (`2O24`, `l760`), e o enunciado garante que dígito nunca vira
+outro dígito. Por isso todo padrão casa numa **vista** do texto em que a
+confusão já foi desfeita, e todo span é cortado do texto original; a vista tem
+o mesmo comprimento, então as posições valem nos dois. Em cada palavra, a
+maioria decide se ela é de letras ou um número, e só a troca isolada é
+desfeita, na direção certa. Código de verdade, com letras e dígitos em bloco
+(`QSCON2018`, a inscrição `SP399990`), fica como está. As classes processuais
+casam numa vista que mantém o acento, porque sem ele `Ré` viraria `RE` e `pág.`
+viraria `Ag`.
 
 ### Índice canônico: um feito, vários registros
 
@@ -187,10 +194,13 @@ final não há erro nenhum, então não sobra sinal para ajustar.
 
 O valor é 1,0, e não a acurácia menos uma margem, por uma conta simples. Com
 constante `c` e acurácia `a` entre os pares alinhados, Brier = a(1 − c)² +
-(1 − a)c², e emitir 1,0 empata com emitir 0,99 em a = 0,995. Nos 200 documentos
-do gerador próprio, que o sistema nunca viu, a acurácia entre pares alinhados é
-de 99,8% (1.982 de 1.986), acima desse ponto. Os erros que custam precisão no
-nível 2 são span perdido e falso positivo, e esses não entram no Brier.
+(1 − a)c², e emitir 1,0 empata com emitir 0,99 em a = 0,995. Em 200 documentos
+do gerador próprio com a taxa de ruído que os documentos reais têm, a acurácia
+entre pares alinhados é de 99,75% (1.988 de 1.993), acima desse ponto. Os erros
+que custam precisão no nível 2 são span perdido e falso positivo, e esses não
+entram no Brier. A margem é estreita dos dois lados: com 3,5% de ruído a
+acurácia cai para 99,3%, e aí 0,99 passaria a ganhar, por quatro milionésimos
+de bônus.
 
 `ferramentas/confianca.py` refaz a comparação e grava `baqueano/calibracao.py`;
 rodado sem argumentos, reproduz a constante submetida.
@@ -286,13 +296,14 @@ escore conforme entradas do vocabulário de classe são removidas ao acaso.
 A curva da esquerda diz que o sistema opera perto do seu ponto de conforto. Os
 documentos de nível 2 têm 0,96% dos caracteres corrompidos, medido pareando as
 frases de enchimento que aparecem nos dois níveis, e nessa faixa o escore fica
-em 95,3%. Dobrar o ruído leva a 93,5%; multiplicá-lo por cinco, a 84,7%.
+em 97,3%. Dobrar o ruído leva a 96,0%; multiplicá-lo por cinco, a 90,1%. Antes
+da vista de OCR, os mesmos pontos eram 95,3%, 93,5% e 84,7%.
 
 Quanto do resultado depende de a lista de classes ter sido escrita certa? É o
 que a curva da direita responde, com as duas versões medidas no mesmo código: a
-linha tracejada desliga a âncora aberta. Removendo cada uma das 85 entradas com
+linha tracejada desliga a âncora aberta. Removendo cada uma das 86 entradas com
 chance de 1/2, na média de cinco sorteios, a versão só com a lista fechada cai
-de 99,6% para 75,4%; com a âncora aberta, de 100,0% para 98,0%. É a diferença
+de 99,6% para 77,5%; com a âncora aberta, de 100,0% para 97,8%. É a diferença
 entre um sistema que depende do inventário escrito à mão e um que depende do
 formato.
 
@@ -331,9 +342,10 @@ flowchart LR
 | goldenset final | 192 citações | score oficial 1,10000; recall e precisão de span 100% |
 | acervo real | 627 citações em 996 acórdãos | 100% de span, 100% de link |
 | auditoria independente | 48 citações, 5 tribunais | 100% pelo critério de posição, 98% pelo de frequência |
-| sintético, semente reservada | 2.014 citações em 200 documentos | score oficial 1,08199; nível 1 com macro-F1 1,0000, nível 2 com 0,9758 |
-| ruído de OCR na taxa real | 0,96% dos caracteres | 95,3% ponderado |
-| vocabulário de classe pela metade | cada uma das 85 entradas removida com chance de 1/2, 5 sementes | 98,0% ponderado |
+| sintético, semente reservada | 2.014 citações em 200 documentos | score oficial 1,09263; nível 1 com macro-F1 1,0000, nível 2 com 0,9901 |
+| sintético com 3,5% de ruído | 1.479 citações em 150 documentos | score oficial 1,06065; nível 2 com macro-F1 0,9476 |
+| ruído de OCR na taxa real | 0,96% dos caracteres | 97,3% ponderado |
+| vocabulário de classe pela metade | cada uma das 86 entradas removida com chance de 1/2, 5 sementes | 97,8% ponderado |
 
 ### O goldenset, e o overfit que ele escondia
 
@@ -367,7 +379,20 @@ de recurso colado no número, como `55.624-AgR/RO`; `Processo nº <CNJ>` no
 corpo, que o enunciado manda tratar como citação e o extrator só tratava como
 distrator de cabeçalho; e nome de classe entre aspas, parênteses ou barra.
 
-Depois, na simplificação do código, ela impediu cortes errados. Sete
+Depois, ela mostrou um defeito que o goldenset escondia. A cadeia de classes
+não exigia fronteira de palavra no começo, então a classe `EI` (Embargos
+Infringentes) casava dentro de `Lei`, `RE` dentro de `sobre` e `RO` dentro de
+`fevereiro`: 13.204 falsos positivos saíam do acervo como jurisprudência
+numerada, 11.662 deles números de lei como `Lei n. 9.876`. No goldenset o
+defeito não aparecia porque lá a lei sempre vem dentro de um `art. X da Lei
+...`, e o span de artigo vence. Com a fronteira, esses falsos positivos
+sumiram. O acidente também cobria citações reais, que precisaram de conserto
+próprio: a sigla `AREspE` do TSE, que só casava porque `REspe` era achado no
+meio dela, entrou na lista de classes, e `processo penal inicial de número
+<CNJ>` passou a ser coberta pela âncora de processo, que agora aceita adjetivos
+entre o substantivo e o número.
+
+Na simplificação do código, ela impediu cortes errados. Sete
 componentes não mudavam nada no goldenset nem no sintético. No acervo, cinco
 deles eram essenciais: sem a lista enumerada perdem-se 80 das 627 citações; sem
 a âncora de processo, 11; sem os filtros de distrator e de documento
@@ -453,10 +478,11 @@ Sem ele, o mesmo CSV é escrito internamente.
 
 ## O que ainda é frágil
 
-- **O nível 2 ruidoso.** É onde o sintético perde: macro-F1 de 0,9758, contra
-  1,0000 no nível 1. O ruído de OCR às vezes corrompe a própria citação, como
-  `HC do 5TJ` ou `APL de 201S`, e aí o span some ou vira falso positivo. É a
-  única perda medida fora do goldenset, e é onde trabalho a mais renderia.
+- **O nível 2 ruidoso.** É onde o sintético ainda perde: macro-F1 de 0,9901 com
+  o ruído de desenvolvimento e 0,9476 com 3,5%, contra 1,0000 no nível 1. O
+  que sobra é a troca de letra por letra, sobretudo `e` por `c` (`dc 2017`,
+  `rclatoria`, `Rcl. Min.`), que a vista não desfaz de propósito: `Rcl` também é
+  a abreviação legítima de Reclamação.
 - **O leitor de cabeçalho.** Ele não é perfeito: em `doc_0215`, a *Cautelar
   Inominada Criminal nº 87*, ele indexa o número de registro no lugar do número
   do processo. O caso é inofensivo porque citação de dois dígitos não é

@@ -11,6 +11,7 @@ Os spans saem em codepoints Unicode, `fim` exclusivo, como manda o contrato.
 import re
 
 from .canon import codigo_do_diploma
+from .normalize import OCR_LETRA_DIGITO
 from .normalize import digitos as digitos_de
 
 UFS = ('AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|'
@@ -32,7 +33,7 @@ CLASSES = [
     r'Agravo\s+em\s+Recurso\s+Especial', r'AREsp', r'AgREsp',
     r'Agravo\s+de\s+Instrumento', r'AI\b', r'AgI\b',
     r'Agravo\b', r'Ag\b',
-    r'Recurso\s+Especial\s+Eleitoral', r'REspe', r'AREspEI',
+    r'Recurso\s+Especial\s+Eleitoral', r'REspe', r'AREspEI', r'AREspE',
     r'Recurso\s+Especial', r'R\.?\s*Esp\.?', r'REsp', r'Rec\.?\s*Esp\.?',
     r'Recurso\s+Extraordin[áa]rio', r'ARE', r'RE\b',
     r'Recurso\s+(?:Ordin[áa]rio\s+)?em\s+Mandado\s+de\s+Seguran[çc]a', r'RMS',
@@ -69,7 +70,7 @@ _CONECTOR = r'(?:\s*(?:-|no|na|nos|nas|em|de|do|da)\s*)'
 # que cola a sigla no numero, como em 'ArgInc- 479-60.2011...' e 'ADI-MC 7.123'.
 _MARCA_FIM = r'(?:\s*[nN]\s*[.ºo°O]{1,2}\s*|\s*[nN]\.\s*|\s*[-–]\s*|\s+)?\s*$'
 CADEIA_CLASSE = re.compile(
-    r'(?:' + ORDINAL_PREFIXO + r')?'
+    r'(?<![0-9A-Za-zÀ-ÿ])(?:' + ORDINAL_PREFIXO + r')?'
     r"(?:(?:" + _CLASSE_ALT + r")\.?['’]?s?" + _CONECTOR + r"?){1,6}" + _MARCA_FIM, re.I)
 # --------------------------------------------------------------------------
 # ancoras ABERTAS: reconhecem classe processual que nao esta na lista acima.
@@ -159,8 +160,12 @@ DISTRATOR_ESQUERDA = re.compile(
 DISTRATOR_DIREITA = re.compile(r'^\s*%')
 # No cabecalho, 'Processo nº <CNJ>' e o numero DOS AUTOS deste documento.
 # No CORPO, 'Processo n <CNJ>' e referencia a OUTRO feito - portanto citacao.
+# Entre o substantivo e o numero cabem adjetivos: 'processo penal inicial de
+# numero <CNJ>', 'autos principais n <CNJ>'.
 ANCORA_PROCESSO = re.compile(
-    r'(?:processos?|autos|feitos?|procedimentos?)\s*(?:n\s*[.ºo°]{0,2}\s*)?$', re.I)
+    r'(?:processos?|autos|feitos?|procedimentos?)'
+    r'(?:\s*(?:n\s*[.ºo°]{0,2}\s*)?'
+    r'|(?:\s+[\wÀ-ÿ]+){0,3}?\s+(?:de\s+)?(?:n[úu]mero|n\s*[.ºo°]{1,2})\s*)$', re.I)
 
 
 # Rotulo de cabecalho: 'Assistido: X', 'Processo nº 123'. E a estrutura
@@ -228,7 +233,7 @@ _NOME = r"[A-ZÀ-Ú][\wÀ-ÿ.'-]*(?:\s+(?:de|da|do|dos|das|e)?\s*[A-ZÀ-Úa-zà-
 # 'precedente do STM de 2023, da relatoria de Marco Antonio'
 VAGA_TRIB_ANO_REL = re.compile(
     r'\b(?:julgado|ac[óo]rd[ãa]o|precedente|aresto|decis[ãa]o|entendimento)\s+'
-    r'd[oe]\s+(' + '|'.join(TRIBUNAIS) + r')\s*,?\s*'
+    r'd[oe0]\s+(' + '|'.join(TRIBUNAIS) + r')\s*,?\s*'
     r'(?:[\wÀ-ÿ]+\s+){0,3}?'
     r'(?:em|de)\s*(\d{4})\s*,?\s*'
     r'(?:[\wÀ-ÿ]+\s+){0,3}?'
@@ -241,7 +246,7 @@ VAGA_TRIB_ANO_REL = re.compile(
 # e por isso NAO sai de lista fechada - anda-se para tras sobre os tokens
 # capitalizados, o que cobre 'EAREsp', 'IPM', 'Apelacao (AP)' e o que vier.
 NUCLEO_VAGO_DATADO = re.compile(
-    r'(?:d[oe]\s+(' + '|'.join(TRIBUNAIS) + r')\s*,?\s*)?'
+    r'(?:d[oe0]\s+(' + '|'.join(TRIBUNAIS) + r')\s*,?\s*)?'
     r'de\s*(\d{4})\s*,?\s*'
     r'(?:Rel\.?|relatoria|relatad[oa])\s*(?:Min\.?)?\s*d?[ceo]?\s*(' + _NOME + r')',
     re.I)
@@ -284,8 +289,61 @@ _VISTA = str.maketrans({
 })
 
 
+# O ruido do nivel 2 poe digito dentro de palavra ('RE5p', 'Eleit0ral') e letra
+# dentro de numero ('2O24', 'l760'). A maioria decide se a palavra e de letras
+# ou um numero, e so a troca ISOLADA e desfeita, na direcao certa. Codigo de
+# verdade, com letras e digitos em bloco ('QSCON2018', 'SP399990'), fica como
+# esta, e dois limites evitam inventar o que nao existe: letra so vira digito
+# num numero de ao menos tres digitos ('S10' e modelo de carro, nao processo), e
+# digito so vira letra numa palavra de ao menos duas letras ('V1' fica).
+_LETRA_DO_DIGITO = {'0': 'o', '1': 'l', '5': 's'}
+# Na borda do numero so valem as trocas que o enunciado lista; no meio, qualquer
+# letra cercada de digitos e ruido. Sem isso 'E5530' e 'b59800', codigos de
+# modelo e de verificacao, viravam numero de processo.
+_BORDA_DIGITO_DA_LETRA = {'O': '0', 'o': '0', 'l': '1', 'I': '1', 'S': '5', 's': '5'}
+_PALAVRA = re.compile(r'[0-9A-Za-zÀ-ÿ]+')
+
+
+def _conserta_palavra(m):
+    t = m.group()
+    digitos = sum(c.isdigit() for c in t)
+    letras = len(t) - digitos
+    if not digitos or not letras:
+        return t
+    e_numero = digitos > letras or (digitos == letras and t[0].isdigit())
+    if (e_numero and digitos < 3) or (not e_numero and letras < 2):
+        return t
+    # palavra colada no fim de um numero ('13.0I60IMG', a UF grudada) continua
+    # sendo o numero, mesmo com mais letras
+    antes = m.string[max(0, m.start() - 2):m.start()]
+    if not e_numero and len(antes) == 2 and antes[1] in '.-/–' and antes[0].isdigit():
+        return t
+    saida = list(t)
+    for i, c in enumerate(t):
+        vizinhos = t[max(0, i - 1):i] + t[i + 1:i + 2]
+        if e_numero and c.isalpha() and not any(v.isalpha() for v in vizinhos):
+            troca = OCR_LETRA_DIGITO if 0 < i < len(t) - 1 else _BORDA_DIGITO_DA_LETRA
+            saida[i] = troca.get(c, c)
+        elif not e_numero and c.isdigit() and not any(v.isdigit() for v in vizinhos):
+            saida[i] = _LETRA_DO_DIGITO.get(c, c)
+    return ''.join(saida)
+
+
+def vista_ocr(texto):
+    """O texto com a confusao de OCR desfeita, caractere a caractere.
+
+    O comprimento nao muda, entao uma posicao achada aqui vale no texto
+    original. O acento fica: as classes processuais ja o toleram na propria
+    regra, e sem ele 'Ré' viraria RE e 'pág.' viraria Ag.
+    """
+    return _PALAVRA.sub(_conserta_palavra, texto)
+
+
 def vista_de_busca(texto):
-    return texto.translate(_VISTA)
+    """Como `vista_ocr`, e sem acento: para as molduras de palavra fixa
+    ('art.', 'Sumula', 'julgado do STF ... relatoria'), que o ruido 'a' -> 'ã'
+    tambem atinge."""
+    return vista_ocr(texto).translate(_VISTA)
 
 
 def _apara_diploma(tail, ini_tail):
@@ -323,32 +381,33 @@ def extrai(texto):
     """Todos os spans de citacao do documento."""
     spans = []
     vista = vista_de_busca(texto)
+    ocr = vista_ocr(texto)
     corpo_comeca = _fim_do_cabecalho(texto)
 
     # 1. sumulas
-    for m in SUMULA.finditer(texto):
+    for m in SUMULA.finditer(vista):
         _add(spans, texto, m.start(), m.end(), 'jurisprudencia', 'sumula',
              numero=m.group(2), vinculante=bool(m.group(1)),
              tribunal=(m.group(3) or '').upper() or None)
 
     # 2. dispositivos de lei
-    for m in ARTIGO.finditer(texto):
+    for m in ARTIGO.finditer(vista):
         diploma, fim = _apara_diploma(m.group(2), m.start(2))
         _add(spans, texto, m.start(), fim, 'lei', 'artigo',
              artigo=m.group(1), diploma_txt=diploma)
 
     # 3. jurisprudencia numerada: acha o numero, olha a esquerda
     ocupado = [(s['inicio'], s['fim']) for s in spans]
-    for m in NUMERO.finditer(texto):
+    for m in NUMERO.finditer(ocr):
         ini, fim = m.start(), m.end()
         if any(a <= ini < b for a, b in ocupado):
             continue
         if not _run_valido(m.group()):
             continue
-        esquerda = texto[max(0, ini - 140):ini]
-        if DISTRATOR_ESQUERDA.search(esquerda) or DISTRATOR_DIREITA.match(texto[fim:fim + 3]):
+        esquerda = ocr[max(0, ini - 140):ini]
+        if DISTRATOR_ESQUERDA.search(esquerda) or DISTRATOR_DIREITA.match(ocr[fim:fim + 3]):
             continue
-        d = digitos_de(texto[ini:fim])
+        d = digitos_de(m.group())
         if len(d) == 4 and 1900 <= int(d) <= 2100:
             continue  # ano solto ('Rcl de 2021'), nao numero de processo
         # qual ancora reconheceu a citacao; a ferramenta de calibracao le isso
@@ -370,10 +429,10 @@ def extrai(texto):
         if not c:
             continue
         ini_classe = max(0, ini - 140) + c.start()
-        uf = UF_SUFIXO.match(texto, fim)
+        uf = UF_SUFIXO.match(ocr, fim)
         if uf:
             fim = uf.end()
-        rg = SUFIXO_REPERCUSSAO.match(texto, fim)
+        rg = SUFIXO_REPERCUSSAO.match(ocr, fim)
         if rg:
             fim = rg.end()
         _add(spans, texto, ini_classe, fim, 'jurisprudencia', 'numerada',
@@ -382,7 +441,7 @@ def extrai(texto):
     # 3b. listas enumeradas: 'Rcls 60.699 e 60.703', 'Rcl's 55.624-AgR/RO,
     # 60.681-AgR/RO, 60.682-AgR/RO'. Uma classe governa varios numeros; so o
     # primeiro tem a classe a esquerda, os demais herdam.
-    spans += _lista_enumerada(texto, [s for s in spans if s['forma'] == 'numerada'])
+    spans += _lista_enumerada(texto, ocr, [s for s in spans if s['forma'] == 'numerada'])
 
     # 4. referencias vagas com tribunal/ano/relator
     for m in VAGA_TRIB_ANO_REL.finditer(vista):
@@ -398,7 +457,7 @@ def extrai(texto):
 SEPARADOR_DE_LISTA = re.compile(r'^\s*(?:[,;]\s*(?:e\s+)?|\s+e\s+)$')
 
 
-def _lista_enumerada(texto, numeradas):
+def _lista_enumerada(texto, vista, numeradas):
     """Numeros que continuam uma citacao ja reconhecida, em enumeracao.
 
     O `trecho` do span continua sendo o texto literal (o contrato exige isso);
@@ -412,13 +471,13 @@ def _lista_enumerada(texto, numeradas):
         classe = s['trecho'][:primeiro_digito].strip(' \n.,-')
         fim = s['fim']
         while True:
-            prox = NUMERO.search(texto, fim, fim + 60)
-            if not prox or not SEPARADOR_DE_LISTA.match(texto[fim:prox.start()]):
+            prox = NUMERO.search(vista, fim, fim + 60)
+            if not prox or not SEPARADOR_DE_LISTA.match(vista[fim:prox.start()]):
                 break
             if not _run_valido(prox.group()) or len(digitos_de(prox.group())) < 4:
                 break
             f2 = prox.end()
-            uf = UF_SUFIXO.match(texto, f2)
+            uf = UF_SUFIXO.match(vista, f2)
             if uf:
                 f2 = uf.end()
             novos.append({'inicio': prox.start(), 'fim': f2,
