@@ -126,7 +126,7 @@ Ele faz o contrário. Acha primeiro os números que parecem processo, depois
 pergunta se à esquerda deles há uma classe processual. O reconhecimento da
 classe tem duas vias:
 
-- **Lista fechada.** Um inventário de 88 classes processuais conhecidas, de
+- **Lista fechada.** Um inventário de 85 classes processuais conhecidas, de
   `REsp` a `Recurso em Sentido Estrito`.
 - **Âncora aberta.** Quando a lista falha, vale um núcleo nominal
   (`Agravo`, `Recurso`, `Embargos`, `Suspensão` e outros vinte) seguido dos seus

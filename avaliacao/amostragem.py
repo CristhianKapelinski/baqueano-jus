@@ -32,7 +32,7 @@ def amostras(base, dir_txt, csv, id_str=False):  # noqa: ARG001 - id_str herdado
                 for r in g[g.documento_id == doc].itertuples()]
         preds = []
         for s in extrai(texto):
-            classe, idc, _, diag = classifica(s, base)
+            classe, idc, diag = classifica(s, base)
             preds.append({'inicio': s['inicio'], 'fim': s['fim'], 'span': s,
                           'classe': classe, 'id': idc, 'diag': diag})
         pares, _ = alinha(gold, preds)

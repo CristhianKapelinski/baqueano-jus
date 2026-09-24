@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Indice da base canonica: acordaos, sumulas e dispositivos de lei.
 
-A base e uma cobertura congelada de 1.018 registros. O indice responde a
+A base e uma cobertura congelada. O indice responde a
 pergunta que decide a classe de uma citacao: quantos FEITOS distintos casam
 com estes identificadores?
 
@@ -14,8 +14,8 @@ import os
 import re
 import sqlite3
 
-from .normalize import (com_correcao_ocr, digitos, limpa_quebras, sem_acento,
-                        texto_canonico, texto_canonico_leve, variantes_cnj)
+from .normalize import (com_correcao_ocr, digitos, sem_acento, texto_canonico,
+                        texto_canonico_leve, variantes_cnj)
 
 DB_PADRAO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          'dados', 'desafio1_bracis.db')
@@ -41,6 +41,11 @@ _PONTUADO = re.compile(r'\d{1,3}(?:\.\s?\d{3})+')
 _CRU = re.compile(r'\b\d{4,7}\b')
 
 _ANO_MIN, _ANO_MAX = 1930, 2100
+
+
+def _cabecalho(t, janela):
+    """O inicio do documento sem o lixo de digitalizacao que carrega numeros."""
+    return _LIXO_CABECALHO.sub(' ', t[:janela])
 
 
 def _parece_ano(d):
@@ -70,7 +75,7 @@ def _stf(t):
     # 'HABEAS CORPUS 192.063 RIO DE JANEIRO' - a classe vem em caixa alta e o
     # numero logo depois. O CNJ que aparece no cabecalho do STF e o processo de
     # ORIGEM, nao o feito, entao o numero curto tem prioridade.
-    h = _LIXO_CABECALHO.sub(' ', t[:600])
+    h = _cabecalho(t, 600)
     m = _PONTUADO.search(h)
     if m:
         return digitos(m.group())
@@ -79,7 +84,7 @@ def _stf(t):
 
 def _stj(t):
     # 'RECURSO ESPECIAL Nº 1.741.784 - PR (2018/0116304-1)'
-    h = _LIXO_CABECALHO.sub(' ', t[:600])
+    h = _cabecalho(t, 600)
     m = re.search(r'N[ºo°]\s*([\d.\s]+?)\s*-\s*[A-Z]{2}\b', h)
     if m and len(digitos(m.group(1))) >= 4:
         return digitos(m.group(1))
@@ -87,8 +92,7 @@ def _stj(t):
 
 
 def _tse(t):
-    h = _LIXO_CABECALHO.sub(' ', t[:800])
-    return _primeiro(h)
+    return _primeiro(_cabecalho(t, 800))
 
 
 def _tst(t):
@@ -113,8 +117,7 @@ def _tst(t):
 
 
 def _stm(t):
-    h = _LIXO_CABECALHO.sub(' ', t[:2000])
-    return _primeiro(h)
+    return _primeiro(_cabecalho(t, 2000))
 
 
 PARSERS = {'STF': _stf, 'STJ': _stj, 'TSE': _tse, 'TST': _tst, 'STM': _stm}
@@ -242,14 +245,12 @@ def _posicao_no_cabecalho(texto, frase, janela, tribunal=None):
     * TST/STM - tem que estar junto da linha de autuacao ('estes autos de ...',
       '..., em que e Agravante'), que e onde mora o numero do feito.
     """
-    alvo = frase.replace(' ', '')
-    sem_zero = alvo.lstrip('0')
+    sem_zero = frase.replace(' ', '').lstrip('0')
     cabeca = _LIXO_POSICIONAL.sub(' ', texto[:janela])
 
     if tribunal in ('TST', 'STM'):
         for m in _NUM_POSICIONAL.finditer(cabeca):
-            d = re.sub(r'\D', '', m.group())
-            if d in (alvo, sem_zero) or d.lstrip('0') == sem_zero:
+            if digitos(m.group()).lstrip('0') == sem_zero:
                 volta = cabeca[max(0, m.start() - 130):m.start()]
                 adiante = cabeca[m.end():m.end() + 160]
                 if _AUTUACAO.search(volta) or _AUTUACAO.search(adiante):
@@ -257,10 +258,9 @@ def _posicao_no_cabecalho(texto, frase, janela, tribunal=None):
         return False
 
     for m in _NUM_POSICIONAL.finditer(cabeca):
-        d = re.sub(r'\D', '', m.group())
-        if len(d) < 4:
-            continue
-        return d in (alvo, sem_zero) or d.lstrip('0') == sem_zero
+        d = digitos(m.group())
+        if len(d) >= 4:
+            return d.lstrip('0') == sem_zero
     return False
 
 
@@ -283,17 +283,15 @@ class BaseCanonica:
 
     def _carrega_acordaos(self):
         linhas = self.con.execute(
-            "SELECT documento_id,id,tribunal,ano,relator,texto "
-            "FROM documentos WHERE natureza='acordao'").fetchall()
-        self.total_acordaos = len(linhas)
-        self.sem_numero = []
-        for did, i, trib, ano, rel, texto in linhas:
+            "SELECT documento_id,id,tribunal,texto FROM documentos "
+            "WHERE natureza='acordao'").fetchall()
+        for did, i, trib, texto in linhas:
             n = PARSERS[trib](texto)
             if not n or len(n) < 4:
-                self.sem_numero.append((did, trib))
                 continue
-            reg = {'documento_id': did, 'id': i, 'tribunal': trib, 'ano': ano,
-                   'relator': rel, 'texto_len': len(texto)}
+            # a classe do cabecalho desempata dois recursos do mesmo processo
+            reg = {'documento_id': did, 'id': i, 'tribunal': trib,
+                   'texto_len': len(texto), 'classes': classe_do_cabecalho(texto)}
             for v in variantes_cnj(n):
                 self.acordaos[(v, trib)].append(reg)
         # Desempate entre registros do MESMO feito. O acervo traz o mesmo
@@ -302,19 +300,9 @@ class BaseCanonica:
         # e engole trechos curtos. A que ficou MAIS LONGA e a mais completa, e e
         # ela que serve de registro canonico - criterio de conteudo, defensavel
         # sem olhar gabarito nenhum, e nao a ordem de leitura do SQLite.
-        for regs in self.acordaos.values():
-            regs.sort(key=lambda r: (-r['texto_len'], r['documento_id']))
-        # a classe do cabecalho e o que desempata dois recursos do mesmo processo
-        for regs in self.acordaos.values():
-            if len(regs) > 1:
-                for r in regs:
-                    texto = self.con.execute(
-                        "SELECT texto FROM documentos WHERE id=?", (r['id'],)).fetchone()[0]
-                    r['classes'] = classe_do_cabecalho(texto)
-        vistos = set()
         for (n, trib), regs in self.acordaos.items():
+            regs.sort(key=lambda r: (-r['texto_len'], r['documento_id']))
             self.por_numero[n].append((trib, regs))
-            vistos.add(n)
 
     def _carrega_dispositivos(self):
         for i, (cod, art) in DISPOSITIVOS.items():
@@ -357,14 +345,10 @@ class BaseCanonica:
         for d in cadeias:
             for v in variantes_cnj(d):
                 for trib, regs in self.por_numero.get(v, []):
-                    if tribunais and trib not in tribunais:
-                        continue
-                    achados[(v.lstrip('0') or v, trib)] = regs
-        # duas grafias do mesmo numero (com e sem zeros) sao o mesmo feito
-        unicos = {}
-        for (n, trib), regs in achados.items():
-            unicos[(n, trib)] = regs
-        return [Feito(k, v) for k, v in unicos.items()]
+                    if not tribunais or trib in tribunais:
+                        # com e sem zeros a esquerda e o mesmo feito
+                        achados[(v.lstrip('0') or v, trib)] = regs
+        return [Feito(k, v) for k, v in achados.items()]
 
     def sumula(self, numero, tribunal=None, vinculante=False):
         if vinculante:
@@ -384,14 +368,14 @@ class BaseCanonica:
     # de ... n TST-...'), que pode estar a milhares de caracteres do inicio.
     JANELA_CABECALHO = {'STF': 700, 'STJ': 700, 'TSE': 900, 'TST': 8000, 'STM': 8000}
 
-    def feitos_por_fts(self, cadeias, tribunais=None, janela=None):
+    def feitos_por_fts(self, cadeias, tribunais=None):
         """Ultimo recurso quando o indice de cabecalho nao acha o numero.
 
         O indice e construido por um parser de cabecalho; se ele errar num
         registro, uma citacao real a esse registro viraria `inventada`. O FTS
         cobre esse buraco - mas devolve tambem quem apenas CITA o numero, e por
-        isso so vale o resultado em que o numero aparece nas primeiras
-        `janela` posicoes, que e onde fica o numero do proprio feito.
+        isso so vale o resultado em que o numero aparece onde fica o numero do
+        proprio feito, numa janela que depende do tribunal.
         """
         achados = {}
         for d in cadeias:
@@ -410,7 +394,7 @@ class BaseCanonica:
                 for did, i, trib, texto in linhas:
                     if tribunais and trib not in tribunais:
                         continue
-                    lim = janela or self.JANELA_CABECALHO.get(trib, 700)
+                    lim = self.JANELA_CABECALHO.get(trib, 700)
                     if _posicao_no_cabecalho(texto, frase, lim, trib):
                         achados.setdefault((d.lstrip('0') or d, trib), []).append(
                             {'documento_id': did, 'id': i, 'tribunal': trib})

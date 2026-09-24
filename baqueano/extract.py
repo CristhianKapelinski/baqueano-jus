@@ -4,35 +4,24 @@
 A estrategia e ancorar em FORMA JURIDICA, nao em frase do documento: primeiro
 acham-se os numeros, depois pergunta-se se a esquerda deles ha uma classe
 processual; em paralelo, acham-se as sumulas e os dispositivos de lei; por fim,
-as referencias vagas, que sao citacoes sem identificador.
+as referencias vagas que identificam tribunal, ano e relator sem dar o numero.
 
 Os spans saem em codepoints Unicode, `fim` exclusivo, como manda o contrato.
 """
 import re
-import unicodedata
 
+from .canon import codigo_do_diploma
 from .normalize import digitos as digitos_de
-
-Span = dict  # {'inicio','fim','trecho','tipo','forma'}
 
 UFS = ('AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|'
        'SC|SP|SE|TO')
 TRIBUNAIS = ('STF', 'STJ', 'TSE', 'TST', 'STM')
 
-TRIBUNAL_POR_EXTENSO = {
-    'supremo tribunal federal': 'STF',
-    'superior tribunal de justica': 'STJ',
-    'tribunal superior eleitoral': 'TSE',
-    'tribunal superior do trabalho': 'TST',
-    'superior tribunal militar': 'STM',
-}
-
-# Classes processuais. Cada entrada e um pedaco de regex; o alfabeto tolera
-# ponto e espaco no meio da abreviacao (R.Esp. / Ag. Int. / Rec. Esp.), que e
+# Inventario de classes processuais dos tribunais superiores, por extenso e
+# abreviadas. E vocabulario de direito processual, nao do gerador dos
+# documentos. Cada entrada e um pedaco de regex, casado sem distinguir caixa; o
+# alfabeto tolera ponto e espaco no meio da abreviacao (R.Esp., Ag. Int.), que e
 # o ruido de superficie do nivel 2.
-# Inventario de classes processuais dos tribunais superiores - forma por
-# extenso e abreviacao. E vocabulario de direito processual, nao do gerador
-# dos documentos: vale para qualquer peca.
 CLASSES = [
     # --- recursos e acoes do STJ / STF ---
     r'Embargos\s+de\s+Declara[çc][ãa]o', r'EDcl', r'EDs?\b',
@@ -45,14 +34,13 @@ CLASSES = [
     r'Agravo\b', r'Ag\b',
     r'Recurso\s+Especial\s+Eleitoral', r'REspe', r'AREspEI',
     r'Recurso\s+Especial', r'R\.?\s*Esp\.?', r'REsp', r'Rec\.?\s*Esp\.?',
-    r'RESP',
     r'Recurso\s+Extraordin[áa]rio', r'ARE', r'RE\b',
     r'Recurso\s+(?:Ordin[áa]rio\s+)?em\s+Mandado\s+de\s+Seguran[çc]a', r'RMS',
     r'Mandado\s+de\s+Seguran[çc]a', r'MS\b',
     r'Recurso\s+(?:Ordin[áa]rio\s+)?em\s+Habeas\s+Corpus', r'RHC',
     r'Habeas\s+Corpus', r'H\.?\s*C\.?\b',
     r'Recurso\s+Ordin[áa]rio', r'RO\b',
-    r'Reclama[çc][ãa]o', r'Recl\.?', r'Rcl', r'RCL',
+    r'Reclama[çc][ãa]o', r'Recl\.?', r'Rcl',
     r'Suspens[ãa]o\s+de\s+Liminar\s+e\s+de\s+Senten[çc]a', r'SLS',
     r'Suspens[ãa]o\s+de\s+Liminar', r'SL\b',
     r'Suspens[ãa]o\s+de\s+Seguran[çc]a', r'SS\b',
@@ -71,8 +59,6 @@ CLASSES = [
     # --- militar ---
     r'Recurso\s+em\s+Sentido\s+Estrito', r'RSE',
     r'Apela[çc][ãa]o', r'APL', r'Ap\b',
-    # --- generico de recurso interno ---
-    r'ED\b',
 ]
 # 'Terceiro AG.REG na Reclamacao', 'Segundos Embargos de Declaracao'
 ORDINAL_PREFIXO = (r'(?:Primeir|Segund|Terceir|Quart|Quint|Sext)[oa]s?\s+')
@@ -87,7 +73,7 @@ CADEIA_CLASSE = re.compile(
     r"(?:(?:" + _CLASSE_ALT + r")\.?['’]?s?" + _CONECTOR + r"?){1,6}" + _MARCA_FIM, re.I)
 # --------------------------------------------------------------------------
 # ancoras ABERTAS: reconhecem classe processual que nao esta na lista acima.
-# A lista fechada e sempre incompleta - a mineracao dos 1.018 registros da base
+# A lista fechada e sempre incompleta - a mineracao do acervo
 # mostra classes reais ausentes dela (APM, IPM, IRDR, EAREsp, RRAg). Estas duas
 # regras cobrem o formato em vez do inventario.
 # --------------------------------------------------------------------------
@@ -177,13 +163,10 @@ ANCORA_PROCESSO = re.compile(
     r'(?:processos?|autos|feitos?|procedimentos?)\s*(?:n\s*[.ºo°]{0,2}\s*)?$', re.I)
 
 
-# Linha de cabecalho: 'Assistido: X', 'Processo nº Y', 'Protocolo nº Z'. E a
-# estrutura rotulo/valor que separa o cabecalho do corpo - mais confiavel que
-# procurar a linha do tipo da peca, que se confunde com o nome do orgao.
-# Rotulo de cabecalho: 'Assunto: ...' ou 'Processo nº 123'. A abreviacao de
-# numero so conta quando vem NUMERO depois: sem isso a preposicao 'no' e lida
-# como 'nº' e qualquer linha de prosa que comece com maiuscula vira rotulo
-# ('O raciocinio desenvolvido no acordao recorrido ...').
+# Rotulo de cabecalho: 'Assistido: X', 'Processo nº 123'. E a estrutura
+# rotulo/valor que separa o cabecalho do corpo. A abreviacao de numero so conta
+# quando vem NUMERO depois: sem isso a preposicao 'no' e lida como 'nº' e
+# qualquer linha de prosa que comece com maiuscula vira rotulo.
 LINHA_DE_CABECALHO = re.compile(
     r'^[A-ZÀ-Ú][\wÀ-ÿ.\-]*(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ.\-]*){0,2}'
     r'(?::\s*\S|\s+[nN][ºo°.]{1,2}\s*\d)')
@@ -305,11 +288,6 @@ def vista_de_busca(texto):
     return texto.translate(_VISTA)
 
 
-def _norm(s):
-    return ''.join(c for c in unicodedata.normalize('NFKD', s)
-                   if not unicodedata.combining(c)).lower()
-
-
 def _apara_diploma(tail, ini_tail):
     """Corta a cauda do diploma no ponto em que ele acaba de ser nomeado.
 
@@ -319,7 +297,6 @@ def _apara_diploma(tail, ini_tail):
     A regra e o prefixo MAIS LONGO que nomeia um diploma - nao o mais curto:
     'Codigo Penal Militar' tem que ganhar de 'Codigo Penal', que e outro codigo.
     """
-    from .canon import codigo_do_diploma
     escolhido = None
     for p in re.finditer(r'\S+', tail):
         if codigo_do_diploma(tail[:p.end()]) is not None:
@@ -374,8 +351,7 @@ def extrai(texto):
         d = digitos_de(texto[ini:fim])
         if len(d) == 4 and 1900 <= int(d) <= 2100:
             continue  # ano solto ('Rcl de 2021'), nao numero de processo
-        # qual ancora reconheceu a citacao - vira feature de confianca, porque
-        # a lista fechada e mais segura que a sigla generica
+        # qual ancora reconheceu a citacao; a ferramenta de calibracao le isso
         ancora = 'classe'
         c = CADEIA_CLASSE.search(esquerda)
         if c is None:

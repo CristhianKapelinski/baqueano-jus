@@ -53,26 +53,20 @@ def limpa_quebras(s):
     return re.sub(r'\s+', ' ', s).strip()
 
 
-def texto_canonico(s):
+def texto_canonico(s, manter=''):
     """Minusculo, sem acento, sem pontuacao, espaco unico. Para casar diplomas.
 
-    A correcao de OCR NAO entra aqui: aplicada as cegas ela quebra palavras
-    legitimas ('rn' -> 'm' estraga 'governo'). Quem precisa dela chama
-    `com_correcao_ocr` como segunda tentativa.
+    `manter` lista a pontuacao que nao pode sumir. A correcao de OCR NAO entra
+    aqui: aplicada as cegas ela quebra palavras legitimas ('rn' -> 'm' estraga
+    'governo'). Quem precisa dela chama `com_correcao_ocr` como segunda tentativa.
     """
     s = sem_acento(limpa_quebras(s)).lower()
-    s = re.sub(r'[^a-z0-9]+', ' ', s)
-    return s.strip()
+    return re.sub(f'[^a-z0-9{re.escape(manter)}]+', ' ', s).strip()
 
 
 def texto_canonico_leve(s):
-    """Como `texto_canonico`, mas preserva ponto e barra.
-
-    Numero de lei ('13.105/2015') perde a identidade se a pontuacao sumir.
-    """
-    s = sem_acento(limpa_quebras(s)).lower()
-    s = re.sub(r'[^a-z0-9./]+', ' ', s)
-    return re.sub(r'\s+', ' ', s).strip()
+    """Preserva ponto e barra: '13.105/2015' perde a identidade sem eles."""
+    return texto_canonico(s, './')
 
 
 def com_correcao_ocr(s):

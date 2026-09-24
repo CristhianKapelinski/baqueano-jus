@@ -132,7 +132,7 @@ def main():
                 # CIRCULAR: se o parser le um cabecalho errado, auditor e
                 # resolvedor erram igual e isto reporta acerto. A segunda
                 # leitura independente esta em avaliacao/auditoria.py.
-                classe, idc, _, _ = classifica(cobre[0], base)
+                classe, idc, _ = classifica(cobre[0], base)
                 if classe != 'real':
                     res_classe += 1
                 elif not _link_confere(base, idc, d):

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Da citacao extraida para (classe, id_canonico), pela tabela do enunciado.
 
-    exatamente 1 feito  -> real       (id_canonico = id de qualquer registro)
+    exatamente 1 feito  -> real       (id_canonico = o registro canonico do feito)
     0 feitos            -> inventada  (resolucao nula)
     2+ feitos distintos -> incompleta (sem criterio de desempate)
     sem identificador   -> incompleta (nem chega a consultar a base)
@@ -9,7 +9,6 @@
 import re
 
 from .canon import codigo_do_diploma
-from .normalize import texto_canonico as _tc
 from .normalize import cadeias_de_digitos, texto_canonico
 
 # Classe processual -> tribunal. So entram as classes privativas de um tribunal;
@@ -42,17 +41,9 @@ def _tribunais_da_classe(trecho):
 
 
 def _tribunais_do_cnj(cadeias):
-    out = set()
-    for d in cadeias:
-        if len(d) == 20:
-            t = CNJ_RAMO.get(d[13])
-            if t:
-                out.add(t)
-        elif 14 <= len(d) < 20:
-            t = CNJ_RAMO.get(d.rjust(20, '0')[13])
-            if t:
-                out.add(t)
-    return out
+    """Tribunal pelo segmento J de cada cadeia que tenha forma de CNJ."""
+    ramos = (CNJ_RAMO.get(d.rjust(20, '0')[13]) for d in cadeias if 14 <= len(d) <= 20)
+    return {t for t in ramos if t}
 
 
 def _tribunal_explicito(trecho):
@@ -80,11 +71,11 @@ def _melhor_registro(registros, contexto):
 
 
 def classifica(span, base):
-    """Devolve (classe, id_canonico|None, confianca, diagnostico).
+    """Devolve (classe, id_canonico|None, diagnostico).
 
-    O diagnostico carrega o que o modelo de confianca precisa saber e que so
-    esta disponivel aqui: quantos feitos casaram, se havia pista de tribunal e
-    se ela confirmou, e se o diploma foi reconhecido.
+    O diagnostico diz como a decisao foi tomada: quantos feitos casaram, se havia
+    pista de tribunal e se ela confirmou, e se o diploma foi reconhecido. A
+    ferramenta de calibracao le isso; a solucao nao.
     """
     forma = span['forma']
     diag = {}
@@ -94,10 +85,10 @@ def classifica(span, base):
                            span.get('vinculante', False))
         diag['n_feitos'] = len(regs)
         if len(regs) == 1:
-            return 'real', str(regs[0]['id']), 0.95, diag
+            return 'real', str(regs[0]['id']), diag
         if not regs:
-            return 'inventada', None, 0.90, diag
-        return 'incompleta', None, 0.60, diag
+            return 'inventada', None, diag
+        return 'incompleta', None, diag
 
     if forma == 'artigo':
         artigo = str(span['artigo']).rstrip('º°o').strip()
@@ -107,21 +98,21 @@ def classifica(span, base):
             # 'Estatuto do Idoso'): da para buscar, e nao esta na cobertura -
             # logo 'inventada'. So e 'incompleta' quando nada foi nomeado.
             if DIPLOMA_NOMEADO.search(texto_canonico(span['diploma_txt'])):
-                return 'inventada', None, 0.75, diag
-            return 'incompleta', None, 0.70, diag
+                return 'inventada', None, diag
+            return 'incompleta', None, diag
         diag['diploma'] = codigo
         regs = base.dispositivo(codigo, artigo)
         diag['n_feitos'] = len(regs)
         if len(regs) == 1:
-            return 'real', str(regs[0]['id']), 0.92, diag
-        return 'inventada', None, 0.85, diag
+            return 'real', str(regs[0]['id']), diag
+        return 'inventada', None, diag
 
     if forma == 'numerada':
         # numero herdado de uma enumeracao carrega a classe do primeiro item
         contexto = span['trecho'] + ' ' + span.get('classe_herdada', '')
         cadeias = cadeias_de_digitos(span['trecho'])
         if not cadeias:
-            return 'incompleta', None, 0.60, diag
+            return 'incompleta', None, diag
         pistas = (_tribunais_da_classe(contexto)
                   | _tribunais_do_cnj(cadeias)
                   | _tribunal_explicito(contexto))
@@ -141,10 +132,10 @@ def classifica(span, base):
         if len(feitos) == 1:
             reg = _melhor_registro(feitos[0].registros, contexto)
             diag['n_registros'] = len(feitos[0].registros)
-            return 'real', str(reg['id']), 0.90, diag
+            return 'real', str(reg['id']), diag
         if not feitos:
-            return 'inventada', None, 0.85, diag
-        return 'incompleta', None, 0.55, diag
+            return 'inventada', None, diag
+        return 'incompleta', None, diag
 
     # referencias vagas
-    return 'incompleta', None, 0.80, diag
+    return 'incompleta', None, diag

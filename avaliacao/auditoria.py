@@ -95,7 +95,7 @@ def main():
         for s in extrai(texto):
             if s['forma'] != 'numerada':
                 continue
-            classe, idc, _, _ = classifica(s, base)
+            classe, idc, _ = classifica(s, base)
             if classe != 'real' or not idc:
                 continue
             d = digitos(s['trecho'].replace('\n', ' '))

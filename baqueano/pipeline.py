@@ -17,7 +17,7 @@ FONTE = 'jusbrasil'
 def processa_documento(texto, base, documento_id=None):
     citacoes = []
     for span in extrai(texto):
-        classe, id_canonico, _, _ = classifica(span, base)
+        classe, id_canonico, _ = classifica(span, base)
         c = {'inicio': span['inicio'], 'fim': span['fim'],
              'trecho': span['trecho'], 'tipo': span['tipo'],
              'classificacao': classe, 'confianca': CONSTANTE,
