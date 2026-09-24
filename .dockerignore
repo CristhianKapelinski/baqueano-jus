@@ -1,0 +1,13 @@
+# Dados e pesos NAO vao dentro da imagem: a base e montada em /data.
+dados
+# Ambiente e artefatos do host.
+.venv
+.git
+__pycache__
+**/__pycache__
+.coverage
+# Saidas e corpora gerados, que se refazem a partir do codigo.
+saida_json
+submission.csv
+sintetico
+sintetico_dificil

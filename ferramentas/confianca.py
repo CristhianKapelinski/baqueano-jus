@@ -60,7 +60,7 @@ def _do_sintetico(base, Xg, acc, pastas=('sintetico', 'sintetico_dificil')):
     Xs, ys = [], []
     for pasta in pastas:
         try:
-            X, y, _ = amostras(base, f'{pasta}/txt', f'{pasta}/goldenset.csv', id_str=True)
+            X, y, _ = amostras(base, pasta)
         except FileNotFoundError:
             continue
         if (1 - y).sum():          # sem erro nenhum nao ha o que aprender
@@ -99,7 +99,7 @@ def estrategias(base=None):
     por conta propria, ela poderia divergir do numero impresso no relatorio.
     """
     base = base or BaseCanonica()
-    X, y, grupos = amostras(base, 'dados/txt', 'dados/goldenset.csv')
+    X, y, grupos = amostras(base, 'dados')
     acc = y.mean()
     iF = [NOMES.index(f'forma={f}') for f in FORMAS]
     iC = [NOMES.index(f'classe={c}') for c in CLASSES]
@@ -130,9 +130,12 @@ def dados_bootstrap(base=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--margem', type=float, default=0.01,
-                    help='quanto abaixo da acuracia medida emitir a constante, '
-                         'para nao ficar superconfiante no conjunto cego')
+    # A metrica oficial calcula o Brier so sobre as citacoes ALINHADAS ao
+    # gabarito. Nessa populacao a acuracia medida fora da amostra (gerador
+    # proprio, 200 documentos) e 99,8%, acima do ponto em que 1,0 passa a
+    # ganhar de 0,99 (99,5%). Por isso a margem padrao e zero.
+    ap.add_argument('--margem', type=float, default=0.0,
+                    help='quanto abaixo da acuracia medida emitir a constante')
     a = ap.parse_args()
     base = BaseCanonica()
     cand, y, grupos, acc = estrategias(base)
@@ -160,19 +163,14 @@ def main():
             'em vez do valor fixo.')
     valor = round(float(acc) - a.margem, 4)
     corpo = ('# -*- coding: utf-8 -*-\n'
-             '"""Gerado por escolhe_confianca.py - NAO editar a mao.\n\n'
-             'Nenhuma estrategia ajustada superou uma constante COM FOLGA neste\n'
-             'conjunto. Isso nao diz que nao existe sinal: diz que 228 predicoes\n'
-             'com 5 erros nao tem resolucao para separar uma vantagem de\n'
-             'milesimo do ruido de amostragem. Ate haver mais dado real\n'
-             'rotulado, a constante e a escolha defensavel. Emitimos a acuracia\n'
-             'medida com uma margem para baixo, porque errar por excesso de\n'
-             'confianca custa mais no Brier do que errar por falta.\n'
+             '"""Gerado por ferramentas/confianca.py - NAO editar a mao.\n\n'
+             f'Medido no goldenset: {len(y)} predicoes, {int((1 - y).sum())} erradas, '
+             f'acuracia {acc:.4f}.\n'
+             'Nenhuma estrategia ajustada superou a constante com folga num\n'
+             'bootstrap por documento. A constante e a acuracia medida menos a\n'
+             f'margem ({a.margem}).\n'
              '"""\n\n'
-             'MODO = "constante"\n'
-             f'CONSTANTE = {valor}\n'
-             f'# acuracia medida no goldenset: {acc:.4f}; margem aplicada: {a.margem}\n'
-             'PESOS = None\n')
+             f'CONSTANTE = {valor}\n')
     open('baqueano/calibracao.py', 'w', encoding='utf-8').write(corpo)
     print(f'baqueano/calibracao.py: constante {valor} '
           f'(acuracia {acc:.4f} menos margem {a.margem})')

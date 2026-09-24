@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Leitura do gabarito, seja ele .xlsx ou .csv.
 
-A organizacao passou a distribuir o goldenset em planilha. O conjunto sintetico
-que geramos continua em CSV. Um leitor so evita que cada suite decida sozinha.
+A organizacao distribuiu o goldenset em planilha e, na versao final do Kaggle,
+como `goldenset_offsets.csv`. O conjunto sintetico que geramos sai como
+`goldenset.csv`. Um leitor so evita que cada suite decida sozinha.
 
 `id_canonico` e sempre lido como texto: em planilha ele chega como numero e o
 pandas o transformaria em float, quebrando a comparacao com o id que o sistema
@@ -15,7 +16,7 @@ import pandas as pd
 
 def caminho(pasta='dados'):
     base = pathlib.Path(pasta)
-    for nome in ('goldenset.xlsx', 'goldenset.csv'):
+    for nome in ('goldenset_offsets.csv', 'goldenset.xlsx', 'goldenset.csv'):
         if (base / nome).exists():
             return base / nome
     raise FileNotFoundError(f'nenhum goldenset em {base}')

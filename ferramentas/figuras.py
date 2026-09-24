@@ -6,9 +6,8 @@
 
 As curvas saem de `resultados/robustez.json`, que este script escreve a partir
 das medicoes reais. Nenhum ponto e inventado: quem quiser conferir roda de novo
-e compara. A serie historica "lista fechada" foi medida no commit c347c60,
-antes das ancoras abertas existirem, e por isso vem marcada como tal no JSON -
-o codigo atual nao consegue reproduzi-la sem voltar no tempo.
+e compara. As duas curvas de ablacao sao medidas na mesma base e no mesmo
+codigo; a "lista fechada" desliga as ancoras abertas durante a medicao.
 """
 import argparse
 import json
@@ -97,7 +96,7 @@ def desenha(res):
                      'caracteres corrompidos', 'escore ponderado', xs, 0.6, 1.0)
     p += serie(r, caixa, 0.6, 1.0, TINTA, 'sistema atual')
     x0, y0, x1, y1 = caixa
-    xop = x0 + (x1 - x0) * 2 / (len(r) - 1)  # 1%, a taxa medida
+    xop = x0 + (x1 - x0) * 2 / (len(r) - 1)  # 1%: o ruido medido no nivel 2 e 0,96%
     p.append(f'<line x1="{xop:.1f}" y1="{y1}" x2="{xop:.1f}" y2="{y0}" '
              f'stroke="{ACENTO}" stroke-width="1.2" stroke-dasharray="3 3"/>')
     p.append(f'<text x="{xop + 6:.1f}" y="{y1 + 12}" font-size="10" fill="{ACENTO}" '

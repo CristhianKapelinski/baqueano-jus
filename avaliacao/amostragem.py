@@ -4,7 +4,6 @@
 Isto era codigo de biblioteca escondido dentro de um script. Quem precisa
 importa daqui; nenhum script importa de outro script.
 """
-import pathlib
 
 import numpy as np
 
@@ -16,16 +15,16 @@ from .gabarito import carrega, ids_aceitos
 from .metrica import alinha
 
 
-def amostras(base, dir_txt, csv, id_str=False):  # noqa: ARG001 - id_str herdado
+def amostras(base, pasta):
     """Uma linha por PREDICAO do sistema, com o alvo 1 se ela seria pontuada.
 
     Falso positivo entra com alvo 0: uma predicao que nao existe no gabarito e
     um erro, e a confianca precisa aprender isso.
     """
-    g = carrega(pathlib.Path(csv).parent)
+    g = carrega(pasta)
     X, y, grupos = [], [], []
     for doc in sorted(set(g.documento_id)):
-        texto = open(f'{dir_txt}/{doc}.txt', encoding='utf-8').read()
+        texto = open(f'{pasta}/txt/{doc}.txt', encoding='utf-8').read()
         gold = [{'inicio': int(r.inicio), 'fim': int(r.fim),
                  'classificacao': r.classificacao,
                  'ids': ids_aceitos(r)}

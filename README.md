@@ -43,17 +43,19 @@ lei ou jurisprudência, a classe, e o registro resolvido quando houver.
 
 São três classes, e a diferença entre as duas últimas importa na prática. A
 citação **inventada** é alucinação ativa e deve ser bloqueada. A **incompleta**
-é evasiva, e serve para sinalizar revisão humana.
+aponta uma decisão concreta, com tribunal, ano e relator, mas não traz dado
+suficiente para chegar a um registro único, e serve para sinalizar revisão
+humana.
 
 A regra de decisão é quase aritmética, uma vez resolvida a consulta:
 
 ```mermaid
 flowchart TD
-    A["citação encontrada no texto"] --> B{"dá para formular<br/>uma consulta?"}
-    B -- "não<br/>(<i>jurisprudência pacífica desta Corte</i>)" --> I["<b>incompleta</b><br/>resolucao: null"]
+    A["citação encontrada no texto"] --> B{"traz identificador?<br/>(número, súmula, artigo)"}
+    B -- "não, só tribunal, ano e relator<br/>(<i>julgado do STF de 2024, relatoria de Dias Toffoli</i>)" --> I["<b>incompleta</b><br/>resolucao: null"]
     B -- sim --> C["consulta a base canônica"]
     C --> D{"quantos feitos<br/>distintos casaram?"}
-    D -- "exatamente 1" --> R["<b>real</b><br/>id_canonico = id do feito"]
+    D -- "exatamente 1" --> R["<b>real</b><br/>id_canonico = registro canônico do feito"]
     D -- "0" --> V["<b>inventada</b><br/>resolucao: null"]
     D -- "2 ou mais" --> I
 
@@ -62,33 +64,42 @@ flowchart TD
     style I fill:#EFEFEF,stroke:#8A97AD
 ```
 
-A base é uma **cobertura congelada** de 1.016 registros, e esse detalhe do
-enunciado muda o desenho da solução. Se um acórdão existe no mundo mas não está
-ali, para efeito do desafio ele não existe. Isso torna o problema decidível, e
-é o que permite resolver por índice em vez de por busca aberta.
+Referência que não aponta decisão nenhuma, do tipo *jurisprudência pacífica
+desta Corte*, não é citação: a organização a tirou do gabarito em 04/09 e em
+15/09, e o verificador não a extrai.
+
+A base é uma **cobertura congelada** de 1.014 registros (996 acórdãos, 13
+dispositivos de lei e 5 súmulas), e esse detalhe do enunciado muda o desenho da
+solução. Se um acórdão existe no mundo mas não está ali, para efeito do desafio
+ele não existe. Isso torna o problema decidível, e é o que permite resolver por
+índice em vez de por busca aberta.
 
 ---
 
 ## Como rodar
 
 ```bash
+python run.py --input <pasta_com_os_txt> --output saida_json
 python run.py <pasta_com_os_txt> saida_json --submissao submission.csv
 ```
 
-`run.py` usa apenas a biblioteca padrão do Python 3.12. Não baixa pesos, não
+`run.py` usa apenas a biblioteca padrão do Python 3.12: foi testado com o
+interpretador do sistema, sem pandas nem numpy instalados. Não baixa pesos, não
 faz chamada de rede e não pede GPU. Os 26 documentos de desenvolvimento saem em
-cerca de 1,2 segundo com 130 MB de memória, bem dentro do envelope de avaliação
-do desafio (1 GPU de 24 GB, 8 vCPUs, 32 GB de RAM).
+1,2 segundo com 130 MB de memória, num Ryzen 5 8600G, bem dentro do envelope de
+avaliação do desafio (1 GPU de 24 GB, 8 vCPUs, 32 GB de RAM).
 
-`dados/` é um link simbólico para a pasta do dataset. Para apontar outro banco,
-use `--db`.
+A base é procurada dentro da pasta de entrada ou ao lado dela, depois em `/data`
+e por fim em `dados/`; `--db` aponta outro caminho. `dados/` fica fora do git e guarda o pacote
+do Kaggle como veio, extraído de
+`kaggle competitions download desafio-jusbrasil-bracis-2026`.
 
 Para avaliar, um comando roda a bateria inteira:
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python verifica.py            # todas as suítes
-.venv/bin/python verifica.py --rapido   # só as rápidas, cerca de 15 s
+.venv/bin/python verifica.py            # todas as suítes, cerca de 7 min
+.venv/bin/python verifica.py --rapido   # só as rápidas
 ```
 
 Cada suíte também roda sozinha, por exemplo
@@ -98,7 +109,7 @@ Cada suíte também roda sozinha, por exemplo
 
 ## Como funciona
 
-O caminho de um documento até o JSON tem quatro etapas. Cada uma resolve um
+O caminho de um documento até o JSON tem três etapas. Cada uma resolve um
 problema diferente, e falham por razões diferentes.
 
 ```mermaid
@@ -107,9 +118,8 @@ flowchart LR
     E --> C["<b>classify.py</b><br/>decide a classe"]
     C --> N["<b>canon.py</b><br/>resolve na base"]
     N --> C
-    C --> F["<b>features.py</b><br/>confiança"]
-    F --> J["JSON<br/>schema 1.2"]
-    B[("base canônica<br/>1.016 registros")] -.-> N
+    C --> J["JSON<br/>schema 1.2"]
+    B[("base canônica<br/>1.014 registros")] -.-> N
 
     style T fill:#EFEFEF,stroke:#8A97AD
     style J fill:#DCE8F2,stroke:#1F2A44
@@ -134,10 +144,10 @@ classe tem duas vias:
   o que não é processo: `DJe`, `fls.`, `OAB`, `Lei`, `Evento`, siglas de estado
   e numeração de documento administrativo.
 
-A segunda via existe porque a primeira é sempre incompleta. Minerando os 1.016
-registros da base aparecem classes reais que nenhum dos 26 documentos de
-desenvolvimento usa: `APM` com 1.898 ocorrências, `IPM` com 890, além de
-`IRDR`, `EAREsp` e `RRAg`. A [Figura 2](#robustez) mostra o quanto isso importa.
+A segunda via existe porque a primeira é sempre incompleta. No acervo aparecem
+classes reais que nenhum dos 26 documentos de desenvolvimento usa: contando a
+sigla como palavra, `APM` ocorre 2.498 vezes, `IPM` 1.705, `IRDR` 732, `RRAg`
+254 e `EAREsp` 169. A [Figura 2](#robustez) mostra o quanto isso importa.
 
 O ruído do nível 2 troca letra por dígito dentro do identificador, e o
 enunciado garante que dígito nunca vira outro dígito. O extrator aceita essas
@@ -146,9 +156,13 @@ letras dentro do número e expande as leituras possíveis na hora de consultar.
 ### Índice canônico: um feito, vários registros
 
 Um **feito** é um processo, identificado pelo par (número normalizado,
-tribunal). Um mesmo feito pode ter mais de um registro no acervo, por exemplo
-quando há embargos de declaração sobre a mesma decisão. Por isso o índice
-guarda uma lista, não um registro só.
+tribunal). Um mesmo feito pode ter mais de um registro no acervo, por exemplo o
+recurso especial e os embargos de divergência opostos nele. Por isso o índice
+guarda uma lista, e o registro emitido sai de dois critérios, nessa ordem: a
+classe processual escrita na citação casada com a do cabeçalho de cada
+registro, e, se ainda empatar, a transcrição mais completa (a de texto mais
+longo), porque o acervo chegou a ter o mesmo acórdão extraído duas vezes, uma
+delas perdendo acentos e trechos curtos.
 
 O número de cada acórdão sai do seu **cabeçalho**, com um leitor por tribunal.
 No TST a âncora não é o cabeçalho e sim a linha de autuação, aquela que diz
@@ -158,35 +172,28 @@ número do próprio feito.
 Leis e súmulas não resolvem por número de processo. Os 18 registros de súmula e
 dispositivo existem para isso, e são casados por texto normalizado do diploma.
 
-### Confiança: uma constante, e isso foi medido
+### Confiança: uma constante, e por que é 1,0
 
-O desafio dá até 10% de bônus para quem envia `confianca` bem calibrada,
-pontuada por **Brier score**, uma medida de erro em que zero é perfeito e
-valores menores são melhores.
+A métrica oficial dá até 10% de bônus por `confianca` bem calibrada:
+`score = macro-F1 × (1 + 0,10 × (1 − Brier))`, com o **Brier score** calculado
+só sobre as citações alinhadas ao gabarito. Brier é o erro quadrático entre a
+confiança declarada e o acerto, em que zero é perfeito.
 
-Chegamos a treinar uma regressão logística sobre features do próprio processo
-de decisão: quantos feitos casaram, se a pista de tribunal confirmou, quanto
-ruído de OCR havia no span, qual âncora disparou. Ela ficava excelente no
-conjunto de treino. No dado real, perdia para uma constante.
+Emitimos uma constante. Nas versões anteriores do gabarito, com cinco a sete
+erros entre as predições, comparamos a constante com regressão logística, taxa
+por classe e taxa por forma, por validação cruzada agrupada por documento, e
+nenhuma venceu a constante com folga num bootstrap por documento. No gabarito
+final não há erro nenhum, então não sobra sinal para ajustar.
 
-| estratégia | Brier no goldenset |
-|---|---|
-| **constante igual à acurácia** | **0,02976** |
-| regressão logística | 0,03023 |
-| taxa por classe | 0,03039 |
-| taxa por forma | 0,03069 |
-| taxa por forma e classe | 0,03072 |
+O valor é 1,0, e não a acurácia menos uma margem, por uma conta simples. Com
+constante `c` e acurácia `a` entre os pares alinhados, Brier = a(1 − c)² +
+(1 − a)c², e emitir 1,0 empata com emitir 0,99 em a = 0,995. Nos 200 documentos
+do gerador próprio, que o sistema nunca viu, a acurácia entre pares alinhados é
+de 99,8% (1.982 de 1.986), acima desse ponto. Os erros que custam precisão no
+nível 2 são span perdido e falso positivo, e esses não entram no Brier.
 
-A causa não se resolve com mais dados sintéticos. São 7 erros em 228 predições
-reais, e com essa quantidade não há sinal para ajustar nada mais fino que uma
-constante. A confiança nos erros era 0,985 contra 0,969 na média geral, ou
-seja, o modelo não distinguia acerto de erro.
-
-`ferramentas/confianca.py` roda essa comparação por validação cruzada agrupada por
-documento e grava a vencedora. Hoje grava a acurácia medida menos um ponto de
-margem, porque errar por excesso de confiança custa mais no Brier do que errar
-por falta. Se aparecer mais dado real rotulado, basta rodar de novo: o script
-se recusa a gravar a constante caso algum modelo passe a ganhar.
+`ferramentas/confianca.py` refaz a comparação e grava `baqueano/calibracao.py`;
+rodado sem argumentos, reproduz a constante submetida.
 
 ---
 
@@ -227,38 +234,40 @@ cabeçalho e cita outros processos: `doc_0005` é a *AG.REG. NA RECLAMAÇÃO
 
 A rede foi endurecida. No STF, STJ e TSE, o número precisa ser o **primeiro**
 número de processo do documento. No TST e no STM, precisa estar junto da linha
-de autuação. O custo é conhecido e foi aceito de propósito: sabotando o leitor
-de cabeçalho, com metade dos registros quebrados a recuperação cai de 92,5%
-para 64,5%. Uma citação `real` falsa é o erro mais caro da métrica, e o leitor
-de cabeçalho hoje não tem falha alguma, então a rede protege contra um problema
-hipotético enquanto o falso positivo era um problema demonstrado.
+de autuação. Hoje ela não muda nada nas medições: foi chamada 512 vezes nos 226
+documentos com gabarito, sempre para citações que o índice não achou, e não
+resolveu nenhuma; nas 627 citações reais do acervo nem chega a ser chamada.
+Fica porque não dá para provar que é redundante para citações ainda não vistas.
 
 ---
 
 ## Resultados
 
-A métrica oficial é F1 macro por classe, calculada por nível de dificuldade. F1
-combina precisão e recall numa medida em que 1 é perfeito. Macro significa que
-as três classes pesam igual, independentemente de quantas citações cada uma
-tem. O nível 2, mais ruidoso, pesa o dobro do nível 1.
+A métrica oficial, `kaggle_metric.py`, tem quatro passos: F1 macro das três
+classes por nível, com `real` exigindo o `id_canonico` certo; uma penalidade
+para `inventada` classificada como `real`; o bônus de calibração; e a média dos
+níveis, com o nível 2, mais ruidoso, pesando o dobro. F1 combina precisão e
+recall numa medida em que 1 é perfeito, e macro significa que as três classes
+pesam igual.
 
-**Tabela 1.** F1 por classe no goldenset distribuído, 225 citações em 26 documentos.
+**Tabela 1.** Métrica oficial no goldenset final, 192 citações em 26 documentos.
 
-| nível | real | inventada | incompleta | **macro** |
-|---|---|---|---|---|
-| 1 (peso 1×) | 0,981 | **1,000** | 0,985 | **0,9885** |
-| 2 (peso 2×) | 0,932 | **1,000** | 0,971 | **0,9675** |
-| **ponderado** | | | | **0,9745** |
+| nível | real | inventada | incompleta | **macro** | bônus |
+|---|---|---|---|---|---|
+| 1 (peso 1×) | **1,000** | **1,000** | **1,000** | **1,0000** | 0,1000 |
+| 2 (peso 2×) | **1,000** | **1,000** | **1,000** | **1,0000** | 0,1000 |
+| **score** | | | | | **1,10000** |
 
-O número que mais importa nessa tabela é o do meio. A classe `inventada` sai
-com F1 igual a 1,000 nos dois níveis, e **nenhuma alucinação foi classificada
-como real**. Isso não é sorte: `inventada` só é emitida quando a busca retorna
-zero resultados, e não existe caminho no código que promova uma `inventada` a
-`real`. Se a métrica pune em dobro esse erro, como o enunciado indica, a
-penalidade nunca dispara.
+1,10000 é o teto da métrica, e foi o que o Kaggle devolveu na submissão de
+15/09. Esse número, porém, é teto e não estimativa: as regras das últimas
+rodadas foram escritas olhando esses 26 documentos. A estimativa honesta para o
+conjunto cego vem do gerador próprio, na [Tabela 2](#como-isso-foi-verificado).
 
-O elo mais fraco é `real` no nível 2, com F1 de 0,932. Os erros que o produzem
-estão todos explicados na seção [Problemas no dataset](#problemas-no-dataset).
+O número que mais importa é o de `inventada`. Ela sai com F1 igual a 1,000 em
+todas as superfícies com gabarito, e **nenhuma alucinação foi classificada como
+real**. Isso não é sorte: `inventada` só é emitida quando a busca retorna zero
+resultados, e não existe caminho no código que promova uma `inventada` a
+`real`. A penalidade da métrica para esse erro nunca dispara.
 
 ### Robustez
 
@@ -271,20 +280,21 @@ um conjunto que não vimos. Duas medições estimam a margem.
 |---|---|
 
 **Figura 2.** À esquerda, o escore conforme o ruído de OCR aumenta; a linha
-vermelha marca a taxa que os documentos de nível 2 realmente têm. À direita, o
+vertical marca a taxa que os documentos de nível 2 realmente têm. À direita, o
 escore conforme entradas do vocabulário de classe são removidas ao acaso.
 
 A curva da esquerda diz que o sistema opera perto do seu ponto de conforto. Os
-documentos de nível 2 têm cerca de 0,4% dos caracteres corrompidos, e nessa
-faixa o escore fica em 95,1%. Dobrar o ruído custa meio ponto; multiplicá-lo
-por dez custa treze pontos.
+documentos de nível 2 têm 0,96% dos caracteres corrompidos, medido pareando as
+frases de enchimento que aparecem nos dois níveis, e nessa faixa o escore fica
+em 95,3%. Dobrar o ruído leva a 93,5%; multiplicá-lo por cinco, a 84,7%.
 
 Quanto do resultado depende de a lista de classes ter sido escrita certa? É o
-que a curva da direita responde. A linha tracejada é a
-versão que tinha só a lista fechada. Remover metade das 88 entradas custava
-15,7 pontos. Com a âncora aberta, a mesma remoção custa 1,4 ponto. É a
-diferença entre um sistema que depende do inventário escrito à mão e um que
-depende do formato.
+que a curva da direita responde, com as duas versões medidas no mesmo código: a
+linha tracejada desliga a âncora aberta. Removendo cada uma das 85 entradas com
+chance de 1/2, na média de cinco sorteios, a versão só com a lista fechada cai
+de 99,6% para 75,4%; com a âncora aberta, de 100,0% para 98,0%. É a diferença
+entre um sistema que depende do inventário escrito à mão e um que depende do
+formato.
 
 ---
 
@@ -296,12 +306,11 @@ cercam o problema pelos lados que ele tem.
 ```mermaid
 flowchart LR
     subgraph D["dado real"]
-        G["<b>goldenset</b><br/>225 citações<br/>26 documentos"]
+        G["<b>goldenset</b><br/>192 citações<br/>26 documentos"]
         AC["<b>acervo</b><br/>627 citações<br/>prosa jurídica real"]
     end
     subgraph S["dado construído"]
-        SI["<b>sintético</b><br/>1.995 citações<br/>gerador mais largo"]
-        AN["<b>anafórica</b><br/>28 paráfrases<br/>+ 15 negativos reais"]
+        SI["<b>sintético</b><br/>2.014 citações<br/>gerador mais largo"]
     end
     subgraph M["margem"]
         RU["<b>ruído</b><br/>OCR crescente"]
@@ -311,7 +320,6 @@ flowchart LR
     style G fill:#DCE8F2,stroke:#1F2A44
     style AC fill:#DCE8F2,stroke:#1F2A44
     style SI fill:#EFEFEF,stroke:#8A97AD
-    style AN fill:#EFEFEF,stroke:#8A97AD
     style RU fill:#EFEFEF,stroke:#8A97AD
     style AB fill:#EFEFEF,stroke:#8A97AD
 ```
@@ -320,13 +328,12 @@ flowchart LR
 
 | superfície | tamanho | resultado |
 |---|---|---|
-| goldenset | 225 citações | 97,9% ponderado, recall de span 99,1%, precisão 97,8% |
-| acervo real | 627 citações | 100% de span, 100% de link |
-| auditoria independente | 67 citações, 5 tribunais | 100% pelo oráculo de posição, 94% pelo de frequência |
-| sintético, semente inédita | 1.995 citações | 99,2% ponderado, precisão 100% |
-| paráfrases anafóricas | 28 positivos, 15 negativos | 96% de recall, 100% de precisão |
-| ruído de OCR no nível real | 0,5% dos caracteres | 95,1% ponderado |
-| metade do vocabulário removida | 44 das 88 entradas | 96,5% ponderado |
+| goldenset final | 192 citações | score oficial 1,10000; recall e precisão de span 100% |
+| acervo real | 627 citações em 996 acórdãos | 100% de span, 100% de link |
+| auditoria independente | 48 citações, 5 tribunais | 100% pelo critério de posição, 98% pelo de frequência |
+| sintético, semente reservada | 2.014 citações em 200 documentos | score oficial 1,08199; nível 1 com macro-F1 1,0000, nível 2 com 0,9758 |
+| ruído de OCR na taxa real | 0,96% dos caracteres | 95,3% ponderado |
+| vocabulário de classe pela metade | cada uma das 85 entradas removida com chance de 1/2, 5 sementes | 98,0% ponderado |
 
 ### O goldenset, e o overfit que ele escondia
 
@@ -339,19 +346,33 @@ desenvolvimento. Vinte e um pontos de diferença é overfit, e foi assim que
 soubemos. A distância caiu para cerca de dois pontos quando as correções
 passaram a ser de cobertura de forma, e não remendo de caso.
 
+Nas rodadas finais os 26 documentos foram usados inteiros para diagnosticar
+erros, então a divisão não vale mais como teste guardado. Cada regra dessas
+rodadas foi aceita só com evidência fora do caso que a motivou: a decisão sob
+recurso deixou de ser citação porque aparece 37 vezes nos documentos e o
+gabarito nunca a anota; a linha de rótulo do cabeçalho, 61 vezes; a frase que
+descreve o próprio documento, 12 vezes em 226 documentos.
+
 ### O acervo como conjunto de teste, sem custo de anotação
 
-Os 1.018 registros da base contêm milhares de citações reais, em prosa jurídica
-de verdade e não sintética. Ninguém precisa anotá-las: toda ocorrência, no
-corpo de um acórdão, de um número que resolve para outro feito do acervo é uma
-citação inegável. São 627, quase três vezes o goldenset inteiro.
+Os 996 acórdãos da base contêm milhares de citações reais, em prosa jurídica de
+verdade e não sintética. Ninguém precisa anotá-las: toda ocorrência, no corpo
+de um acórdão, de um número que resolve para outro feito do acervo é uma
+citação inegável. São 627, mais de três vezes o goldenset inteiro.
 
-Essa suíte pagou. Ela achou quatro lacunas que 26 documentos sintéticos nunca
-mostrariam: listas enumeradas do tipo `Rcls 60.699 e 60.703`, onde uma classe
-governa vários números e só o primeiro a tem à esquerda; sufixo de recurso
-colado no número, como `55.624-AgR/RO`; `Processo nº <CNJ>` no corpo, que o
-enunciado manda tratar como citação e o extrator só tratava como distrator de
-cabeçalho; e nome de classe entre aspas, parênteses ou barra.
+Essa suíte pagou duas vezes. Primeiro, achou quatro lacunas que 26 documentos
+sintéticos nunca mostrariam: listas enumeradas do tipo `Rcls 60.699 e 60.703`,
+onde uma classe governa vários números e só o primeiro a tem à esquerda; sufixo
+de recurso colado no número, como `55.624-AgR/RO`; `Processo nº <CNJ>` no
+corpo, que o enunciado manda tratar como citação e o extrator só tratava como
+distrator de cabeçalho; e nome de classe entre aspas, parênteses ou barra.
+
+Depois, na simplificação do código, ela impediu cortes errados. Sete
+componentes não mudavam nada no goldenset nem no sintético. No acervo, cinco
+deles eram essenciais: sem a lista enumerada perdem-se 80 das 627 citações; sem
+a âncora de processo, 11; sem os filtros de distrator e de documento
+administrativo, passam 602 falsos positivos como `Instrução Normativa nº 497` e
+`Petição 45.556`.
 
 ### A auditoria independente, e por que a outra não bastava
 
@@ -372,54 +393,48 @@ falham por razões diferentes.
   de posição, então não herda a fraqueza do primeiro.
 
 A amostra é estratificada por tribunal, porque uma amostra aleatória concentra
-STF e STJ e deixa o TST e o STM, justamente onde o oráculo de posição é fraco,
-com poucos casos ou nenhum.
+STF e STJ e deixa o TST e o STM, justamente onde o critério de posição é fraco,
+com poucos casos ou nenhum. O TST contribui com poucos porque a cota esbarra no
+que o acervo oferece.
 
-**Tabela 3.** Concordância entre o resolvedor e cada oráculo, por tribunal.
+**Tabela 3.** Concordância entre o resolvedor e cada critério, por tribunal.
 
 | tribunal | n | posição | frequência |
 |---|---|---|---|
-| STF | 15 | 100% | 100% |
-| STJ | 15 | 100% | 73% |
-| STM | 15 | 100% | 100% |
-| TSE | 15 | 100% | 100% |
-| TST | 7 | 100% | 100% |
-| **total** | **67** | **100%** | **94%** |
+| STF | 6 | 100% | 100% |
+| STJ | 9 | 100% | 100% |
+| STM | 16 | 100% | 94% |
+| TSE | 16 | 100% | 100% |
+| TST | 1 | 100% | 100% |
+| **total** | **48** | **100%** | **98%** |
 
-O oráculo de posição concorda em todos os cinco tribunais, inclusive nos dois
-onde se esperava que fosse fraco. Onde o de frequência discorda, a inspeção
-mostra que o errado é ele: no caso do número 1377019, o resolvedor aponta um
-documento que traz o número na posição 20, que só pode ser cabeçalho, enquanto
-o oráculo de frequência prefere outro que o menciona mais vezes no corpo.
+O critério de posição concorda em todos os cinco tribunais, inclusive nos dois
+onde se esperava que fosse fraco. No único caso em que o de frequência
+discorda, a inspeção mostra que o errado é ele: o resolvedor aponta um registro
+que traz o número na posição 68, que só pode ser cabeçalho, enquanto a
+frequência prefere outro que o menciona quatro vezes no corpo.
 
 Na primeira rodada essa segunda leitura discordou em 80% dos casos. Os dois
 lados tinham defeito. No sistema, era a janela frouxa da rede de segurança,
 descrita na seção da armadilha. No auditor, era contar **empate** como
-divergência: quando dois registros do mesmo feito aparecem na mesma posição, o
-enunciado diz que acertar qualquer um conta como acerto pleno. Corrigidos os
-dois, a concordância é de 150 em 150.
+divergência, quando dois registros do mesmo feito aparecem na mesma posição.
 
 ### O gerador próprio, feito mais largo que o deles
 
 `ferramentas/gerador.py` reconstrói a peça sintética de propósito mais ampla que a
 original: classes vindas da mineração do acervo, formatos de número e de estado
 combinados livremente, frases escritas fora do inventário observado, ruído
-ajustável. O gabarito é exato porque os spans são colocados, não anotados.
+ajustável, e as referências difusas como distrator não anotado. O gabarito é
+exato porque os spans são colocados, não anotados.
 
 Passar aqui significa cobrir a forma. O que ele não pode fazer é prever o
 escore no conjunto cego, porque testa contra o nosso modelo do gerador e não
 contra o deles.
 
-### A referência sem identificador saiu do escopo
-
-O verificador chegou a ter uma terceira via de extração, para referências sem
-identificador nenhum, do tipo *jurisprudência pacífica desta Corte*. A
-organização retirou essas referências do gabarito em duas revisões, em 04/09
-e em 15/09, com o critério de que só há citação quando existe uma decisão ou
-norma concreta por trás dela. A via foi removida do código, e com ela a suíte
-que a media. O que continua sendo `incompleta` é a referência que identifica
-tribunal, ano e relator mas não chega a um registro único, e isso é coberto
-por `vaga_trib_ano_rel` e `vaga_classe_ano_rel`.
+Ele também já mentiu uma vez. Quando o feito tinha mais de um registro, o
+gerador gravava como gabarito o primeiro da lista do nosso próprio índice, e a
+suíte passou a medir a ordem do índice em vez da resolução. Hoje o gabarito
+sintético aceita qualquer registro do feito, que é tudo que o gerador sabe.
 
 ## Isolamento por documento
 
@@ -431,65 +446,68 @@ saíam 13 JSONs e nenhum `submission.csv`, e como o arquivo ruim ordenava antes
 dos `gen_n2_*`, perdia-se justamente o nível 2, que pesa o dobro. Depois do
 conserto saem 27 JSONs e o CSV completo, com aviso no `stderr`.
 
-O `--submissao` também não depende mais do link `dados/` existir. Sem o
-conversor do organizador, o mesmo CSV é escrito internamente.
+O `--submissao` também não depende do conversor do organizador estar presente.
+Sem ele, o mesmo CSV é escrito internamente.
 
 ---
 
 ## O que ainda é frágil
 
-- **A referência sem identificador.** São 96% de recall em fraseados inéditos,
-  contra 100% no goldenset, e ela responde por três dos cinco falsos positivos
-  que sobram. `precedentes aplicáveis à espécie` é, na superfície, idêntico a
-  `verbete sumular aplicável à espécie`, que o gabarito conta como citação. Sob
-  F1 macro essa classe vale um terço da nota, então é onde cada ponto rende
-  mais.
-- **O desempate entre registros do mesmo feito.** O enunciado diz que
-  `id_canonico` é um conjunto e que acertar qualquer id conta. Na prática, 4 das
-  96 citações `real` caem num feito com mais registros do que o gabarito
-  aceita, inclusive um par com texto idêntico byte a byte, onde não existe
-  sinal. Adotamos ordem determinística pelo maior `documento_id`. Ela acerta
-  nos dois casos observados, o que com dois casos não é evidência de nada.
+- **O nível 2 ruidoso.** É onde o sintético perde: macro-F1 de 0,9758, contra
+  1,0000 no nível 1. O ruído de OCR às vezes corrompe a própria citação, como
+  `HC do 5TJ` ou `APL de 201S`, e aí o span some ou vira falso positivo. É a
+  única perda medida fora do goldenset, e é onde trabalho a mais renderia.
+- **O leitor de cabeçalho.** Ele não é perfeito: em `doc_0215`, a *Cautelar
+  Inominada Criminal nº 87*, ele indexa o número de registro no lugar do número
+  do processo. O caso é inofensivo porque citação de dois dígitos não é
+  extraída, mas mostra que o índice depende de um parser por tribunal.
+- **A rede de segurança.** O filtro que tira datas do cabeçalho também tira o
+  ano de dentro de um número CNJ, e por isso, no STF, no STJ e no TSE, a rede
+  não consegue aceitar uma citação em formato CNJ. O defeito só a deixa mais
+  conservadora, nunca errada, e ela não resolve nada nas medições atuais.
 - **O diploma real fora da cobertura.** Um artigo que existe, de um código que
   não está entre os 18 registros, é classificado como `inventada`. O gabarito
   de desenvolvimento não contém nenhum caso assim, então essa escolha é uma
   aposta e não uma inferência. O enunciado sugere que tal caso sairia do
   scoring, o que mantém o risco baixo.
-- **O viés de auto-avaliação.** Duas das evidências deste documento são medidas
-  por populações que excluem parte do modo de falha. A conferência de link do
-  `avaliacao/acervo.py` usa o mesmo leitor que audita, e por isso existe a
-  auditoria independente. O conjunto sintético testa contra o nosso modelo do
-  gerador, não contra o deles. As duas ressalvas estão anotadas onde os números
-  aparecem.
-- **A métrica oficial ainda não foi lida na fonte.** Tudo aqui é medido contra
-  um proxy montado a partir do enunciado. O `kaggle_metric.py` citado no PDF não
-  veio no pacote de dados, e o validador de formato do starter kit também não.
+- **O viés de auto-avaliação.** O goldenset foi usado para escrever as regras, a
+  conferência de link do acervo usa o mesmo leitor que audita, e o sintético
+  testa contra o nosso modelo do gerador. Por isso cada número deste documento
+  vem com a superfície que o produziu.
 
 ---
 
 ## Problemas no dataset
 
-Três achados que valem uma pergunta à organização. Os dois primeiros afetam a
-nota de qualquer competidor, não só a nossa.
+O dataset teve três revisões depois da primeira distribuição, em 28/08, 04/09
+e 15/09, e parte delas corrigiu defeitos que também tínhamos encontrado.
 
-**1. `gen_n2_010.txt` não bate com o gabarito.** O arquivo distribuído perdeu a
-string `"AgInt no "`, que tem exatamente 9 caracteres, antes da citação `g2`.
-Por isso `g2` não é localizável no texto e as citações `g3` a `g7` estão
-deslocadas em 9 posições. São 6 das 225 citações, e nenhuma solução consegue
-alinhá-las. Nos outros 25 documentos, os 218 spans restantes batem no offset
-exato, o que mostra que o problema é desse arquivo e não uma convenção.
+**Corrigidos pela organização em 28/08.** O arquivo `gen_n2_010.txt` tinha
+perdido a cadeia `"AgInt no "`, de 9 caracteres, antes de uma citação, o que
+deixava uma citação inalcançável e as cinco seguintes deslocadas em 9 posições.
+E os registros `doc_0227` e `doc_0461`, duplicatas com texto idêntico sob
+ids diferentes, saíram da base, que passou de 1.018 para 1.016 registros.
 
-**2. Duas citações `real` apontam para quem cita, não para quem é.** Em
-`gen_n2_005/g6`, a citação `TST-AgARR-25823-78.2015.5.24.0091` tem
-`id_canonico = 2813052232`, que é o `doc_0710`. O número próprio do `doc_0710`,
-na sua linha de autuação, é `TST-Ag-ARR-10132-34.2015.5.03.0018`. Quem é o
-AIRR-25823 é o `doc_0729`. O mesmo ocorre em `gen_n1_012`. Se o gabarito do
-conjunto cego foi gerado pelo mesmo processo, isso muda a estratégia de
-desempate, e essa é uma resposta que só a organização pode dar.
+**Reportados por nós em 08/09 e corrigidos na versão final de 15/09.** A
+organização agradeceu os "questionamentos enviados por participantes" no e-mail
+da versão final.
 
-**3. Dois artefatos citados nas regras não vieram.** O `kaggle_metric.py`, que
-o PDF diz acompanhar os dados, e o starter kit com o validador de formato, que
-o site manda rodar antes de submeter.
+1. O leaderboard seguia pontuando com o gabarito anterior depois da troca de
+   04/09: o mesmo arquivo tirava 0,98386 no Kaggle, que é a nota contra o
+   gabarito antigo, e 1,09272 contra o novo. A partir de 15/09 as notas do
+   Kaggle passaram a bater com a pontuação local contra o gabarito vigente.
+2. Em `gen_n2_005`, a citação `TST-AgARR-25823-78.2015.5.24.0091` tinha como
+   `id_canonico` o `doc_0710`, que apenas menciona o processo; o número próprio
+   dele é `10132-34.2015.5.03.0018`. O id passou a ser o do `doc_0729`, cuja
+   autuação é a do AIRR-25823. Nas 77 citações `real` que apontam para
+   acórdão, o número identificava o registro aceito em 76; essa era a exceção.
+3. A frase *reiterados precedentes do Superior Tribunal de Justiça* tinha sido
+   removida de `gen_n2_006` e mantida em `gen_n1_013`, com texto idêntico; saiu
+   dos dois.
+4. `doc_0640`/`doc_0657` e `doc_0670`/`doc_0662` eram o mesmo julgado indexado
+   duas vezes, mas diferindo por tipografia, e por isso tinham escapado da
+   deduplicação por texto exato; os dois pares eram apontados por citações do
+   gabarito. `doc_0657` e `doc_0662` saíram da base.
 
 ---
 
@@ -500,7 +518,7 @@ semente: a mesma entrada produz a mesma saída, byte a byte.
 
 O comando exato que gera as predições submetidas está em
 [`REPRODUZIR.md`](REPRODUZIR.md), junto com o `Dockerfile` e o envelope de
-execução. Referência de modelo: nenhum.
+execução. Referência de modelo: nenhuma.
 
 ### Mapa do repositório
 
@@ -521,12 +539,14 @@ baqueano/                  A SOLUÇÃO
 
 avaliacao/                COMO SABEMOS QUE ELA FUNCIONA
   metrica.py                alinhamento por IoU e escore  (CLI: goldenset)
+  gabarito.py               leitor único do gabarito, .csv ou .xlsx
   amostragem.py             amostras rotuladas e ajuste logístico
   features.py               features das amostras de confiança
   acervo.py                 teste em escala no acervo real
   auditoria.py              segunda leitura, sem o leitor de cabeçalho
   sintetico.py              escore no conjunto sintético
   ruido.py                  curva de ruído de OCR
+  ruido_real.py             taxa de ruído medida nos documentos
   ablacao.py                curva de ablação de vocabulário
   spans.py                  lista spans perdidos e inventados
 
@@ -534,15 +554,17 @@ ferramentas/              INSUMOS
   gerador.py                gera peças sintéticas com gabarito exato
   confianca.py              decide como emitir a confiança
   figuras.py                mede e redesenha os gráficos deste documento
+  figuras_paper.py          figuras medidas do artigo
 ```
 
 Duas regras de dependência valem aqui. Nenhum script importa de outro script:
-o que era compartilhado virou `avaliacao/metrica.py` e
-`avaliacao/amostragem.py`. E `baqueano/` não importa nada de `avaliacao/` nem de
-`ferramentas/`, de modo que a submissão não arrasta a infraestrutura de teste.
+o que era compartilhado virou `avaliacao/metrica.py`,
+`avaliacao/gabarito.py` e `avaliacao/amostragem.py`. E `baqueano/` não importa
+nada de `avaliacao/` nem de `ferramentas/`, de modo que a submissão não arrasta
+a infraestrutura de teste.
 
 ---
 
 Este documento e o código foram escritos com auxílio de IA generativa para
 redação e revisão. As decisões de projeto, as medições e a responsabilidade
-pelo conteúdo são dos autores.
+pelo conteúdo são do autor.
