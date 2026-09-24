@@ -6,10 +6,9 @@ treino usa numpy, a inferencia e um produto interno.
 """
 import math
 
-from .normalize import digitos, limpa_quebras
+from baqueano.normalize import digitos, limpa_quebras
 
-FORMAS = ('numerada', 'sumula', 'artigo', 'vaga_trib_ano_rel',
-          'vaga_classe_ano_rel', 'vaga_anaforica')
+FORMAS = ('numerada', 'sumula', 'artigo', 'vaga_trib_ano_rel', 'vaga_classe_ano_rel')
 CLASSES = ('real', 'inventada', 'incompleta')
 # Qual regra reconheceu a citacao. A lista fechada de classes e a mais
 # confiavel; a sigla generica e a mais arriscada.

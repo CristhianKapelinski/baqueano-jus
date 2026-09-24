@@ -25,7 +25,7 @@ import numpy as np
 
 from avaliacao.amostragem import amostras, auc, brier, ece, treina
 from baqueano.canon import BaseCanonica
-from baqueano.features import CLASSES, FORMAS, NOMES
+from avaliacao.features import CLASSES, FORMAS, NOMES
 
 
 def cv_taxa(chaves, y, grupos, acc, alfa=2.0, folds=6):

@@ -410,35 +410,16 @@ Passar aqui significa cobrir a forma. O que ele não pode fazer é prever o
 escore no conjunto cego, porque testa contra o nosso modelo do gerador e não
 contra o deles.
 
-### A família mais frágil, testada sem circularidade
+### A referência sem identificador saiu do escopo
 
-A citação sem identificador é a única que o conjunto sintético **não** consegue
-medir. As frases anafóricas do gerador foram copiadas do gabarito observado, o
-que tornaria o teste circular.
-
-`avaliacao/anaforica.py` resolve isso com duas populações independentes. Os
-positivos são 28 paráfrases escritas de propósito fora do vocabulário da regra.
-Os negativos são 15 frases reais dos 26 documentos que o gabarito não anota, e
-por isso um falso positivo ali é comprovado e não suposto.
-
-A primeira medição deu 50% de recall. Investigar essa lacuna rendeu quatro
-bugs, nenhum deles visível no goldenset:
-
-- `diretrizes?` nunca casava a palavra `diretriz`, porque o opcional caiu na
-  letra errada.
-- O sufixo de gerúndio marcava substantivo como verbo, o que descartava
-  `comando`, `bando` e `quando`.
-- `esta` sem acento é demonstrativo, não verbo. Como a vista de busca remove
-  acentos, `por esta Casa` e `desta Corte`, que são as âncoras mais comuns do
-  jargão jurídico, eram lidas como oração e descartadas.
-- Um sintagma externo rejeitado escondia um interno válido, porque a varredura
-  não sobrepõe: `A tese encontra respaldo em a diretriz jurisprudencial
-  predominante` engolia `diretriz jurisprudencial predominante` e perdia os
-  dois.
-
-Depois das correções, o recall é de 96% e os 15 negativos continuam limpos.
-
----
+O verificador chegou a ter uma terceira via de extração, para referências sem
+identificador nenhum, do tipo *jurisprudência pacífica desta Corte*. A
+organização retirou essas referências do gabarito em duas revisões, em 04/09
+e em 15/09, com o critério de que só há citação quando existe uma decisão ou
+norma concreta por trás dela. A via foi removida do código, e com ela a suíte
+que a media. O que continua sendo `incompleta` é a referência que identifica
+tribunal, ano e relator mas não chega a um registro único, e isso é coberto
+por `vaga_trib_ano_rel` e `vaga_classe_ano_rel`.
 
 ## Isolamento por documento
 
@@ -534,7 +515,6 @@ baqueano/                  A SOLUÇÃO
   extract.py                acha os spans de citação
   canon.py                  índice da base canônica
   classify.py               tabela de decisão do enunciado
-  features.py               features da confiança
   normalize.py              normalização de identificadores
   pipeline.py               documento para JSON
   calibracao.py             gerado por ferramentas/confianca.py
@@ -542,10 +522,10 @@ baqueano/                  A SOLUÇÃO
 avaliacao/                COMO SABEMOS QUE ELA FUNCIONA
   metrica.py                alinhamento por IoU e escore  (CLI: goldenset)
   amostragem.py             amostras rotuladas e ajuste logístico
+  features.py               features das amostras de confiança
   acervo.py                 teste em escala no acervo real
   auditoria.py              segunda leitura, sem o leitor de cabeçalho
   sintetico.py              escore no conjunto sintético
-  anaforica.py              teste da família sem identificador
   ruido.py                  curva de ruído de OCR
   ablacao.py                curva de ablação de vocabulário
   spans.py                  lista spans perdidos e inventados

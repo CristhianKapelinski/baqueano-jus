@@ -433,16 +433,3 @@ class BaseCanonica:
             grupos.insert(0, resto)
             saida.append(' '.join(grupos))
         return [f for f in dict.fromkeys(saida) if f.strip()]
-
-    def conta_acordaos(self, tribunal=None, ano=None, relator=None):
-        """Quantos acordaos casam com tribunal/ano/relator - a consulta que
-        caracteriza a citacao 'buscavel mas ambigua'."""
-        sql = "SELECT COUNT(*) FROM documentos WHERE natureza='acordao'"
-        args = []
-        if tribunal:
-            sql += " AND tribunal=?"; args.append(tribunal)
-        if ano:
-            sql += " AND ano=?"; args.append(int(ano))
-        if relator:
-            sql += " AND relator LIKE ?"; args.append(f'%{relator}%')
-        return self.con.execute(sql, args).fetchone()[0]

@@ -10,7 +10,7 @@ import numpy as np
 
 from baqueano.classify import classifica
 from baqueano.extract import extrai
-from baqueano.features import vetor
+from avaliacao.features import vetor
 
 from .gabarito import carrega, ids_aceitos
 from .metrica import alinha

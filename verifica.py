@@ -24,8 +24,6 @@ SUITES = [
      modulo('avaliacao.auditoria', '--fontes', '120', '--amostra', '80'), True),
     ('sintetico proprio, semente inedita',
      modulo('avaliacao.sintetico', '--dir', 'sintetico'), False),
-    ('referencia sem identificador (parafrases ineditas)',
-     modulo('avaliacao.anaforica'), False),
     ('robustez a ruido de OCR', modulo('avaliacao.ruido'), True),
     ('ablacao do vocabulario de classe', modulo('avaliacao.ablacao'), True),
 ]

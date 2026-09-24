@@ -172,7 +172,6 @@ DISTRATOR_ESQUERDA = re.compile(
     re.I)
 DISTRATOR_DIREITA = re.compile(r'^\s*%')
 # No cabecalho, 'Processo nº <CNJ>' e o numero DOS AUTOS deste documento.
-AUTOS_PROPRIOS = re.compile(r'(?:processo|autos|feito)\s+n?[.ºo°]?\s*$', re.I)
 # No CORPO, 'Processo n <CNJ>' e referencia a OUTRO feito - portanto citacao.
 ANCORA_PROCESSO = re.compile(
     r'(?:processos?|autos|feitos?|procedimentos?)\s*(?:n\s*[.ºo°]{0,2}\s*)?$', re.I)
@@ -287,94 +286,6 @@ def _estende_classe_a_esquerda(texto, ini, limite=6):
     return pos
 
 
-# Nucleo juridico de uma referencia anaforica, e a ancora que ela usa para
-# apontar para algo. A vista de busca ja tira o acento, entao basta a forma
-# simples; o sufixo tolerante ('jurisprud[..]ia') absorve corrupcao de OCR.
-_NUCLEO = (r'normas?|legislacao|leis?\b|dispositivos?|disposicoes|artigos?|'
-           r'preceitos?|comandos?|regras?|textos?|diretriz(?:es)?|'
-           r'teses?|enunciados?|verbetes?|sumulas?|orientacao|orientacoes|'
-           r'jurisprud[\wÀ-ÿ]{0,4}ia|precedentes?|acordaos?|julgados?|arestos?|'
-           r'entend[\wÀ-ÿ]{0,6}entos?')
-# Ancora de referencia: o SUBSTANTIVO ou complemento para o qual a citacao
-# vaga aponta. Adjetivo solto ('hoje pacificada') nao entra: nao aponta nada.
-_ANCORA = (r'regencia|invocad|repetitiv|sumulad|sumular|correspondente|'
-           r'materia|especie|corte|casa|turma|secao|caso|hipotese|questao|'
-           r'tema|controversia|lide|demanda|feito|'
-           r'tribuna(?:l|is)|superior(?:es)?|origem|repercussao|plenario|'
-           r'competente|vigor|paradigma|pertinente|vinculante|federal|'
-           r'constitucional|processual|material|legal|legais|sumular')
-
-# Uma referencia sem identificador so e citacao quando e um SINTAGMA NOMINAL
-# fechado - termina em fronteira de oracao e nao contem verbo finito. E o que
-# separa 'jurisprudencia pacifica desta Corte' (citacao) de 'a orientacao dos
-# tribunais superiores e firme no ponto' (frase descritiva).
-# Predicado que introduz citacao. Uma referencia sem identificador so e citacao
-# quando alguem a INVOCA - a lista vem dos radicais das 86 frases-veiculo
-# observadas nos documentos.
-PISTA_CITACAO = re.compile(
-    # Radical VERBAL, com terminacao explicita: 'aplica-se' e veiculo,
-    # 'DO DIREITO APLICAVEL' e titulo de secao e nao pode contar.
-    r'(?:invoca|invocar|repousa|respaldo|observancia|amparo|ampara|apoia|'
-    r'ancora|arrima|aplica(?:-se|m|r|ndo)?\b|incidencia|atrai|confira|veja|'
-    r'colaciona|transcrev|milita|reconhec|assentado|decidiu|depreende|ignorar|'
-    r'registro|registre|impoe|caminha|decorre|desconsiderou|destacar|destaque|'
-    r'lembrar|firmad|diverge|ilustra|robustece|reforca|corrobora|merece|'
-    r'serve|guarda|colhe|extrai)'
-    r'(?:(?!\n\s*\n)[^.;!?]){0,50}$', re.I)
-
-# Onde cada nucleo comeca. Precisamos disto porque `finditer` nao sobrepoe: se
-# um sintagma externo casa e e rejeitado por um filtro, ele ESCONDE um sintagma
-# interno valido ('A tese encontra respaldo em a diretriz jurisprudencial
-# predominante' engolia 'diretriz ...'). Varremos nucleo a nucleo.
-# Emissao da ancora anaforica. Ver o bloco 5 de `extrai`.
-ANCORA_ANAFORICA_ATIVA = False
-INICIO_NUCLEO = re.compile(
-    r'\b(?:recentes?\s+|reiterados?\s+|iterativos?\s+)?(?:' + _NUCLEO + r')\b', re.I)
-VAGA_ANAFORICA = re.compile(
-    r'\b(?:recentes?\s+|reiterados?\s+|iterativos?\s+)?'
-    r'(?:' + _NUCLEO + r')'
-    r'(?:[ \t\n\xa0]+[a-zà-ÿA-ZÀ-Ú][\wÀ-ÿ]*){1,7}?'
-    # fronteira do sintagma: pontuacao, linha em branco, fim - ou uma
-    # preposicao que abre adjunto ('... da Segunda Turma para sustentar que')
-    r'(?=[,.;:]|\s+(?:para|a\s+fim\s+de|quando|porque|pois|conforme|'
-    r'segundo|enquanto)\b|\n\s*\n|$)',
-    re.I)
-_TEM_ANCORA = re.compile(_ANCORA, re.I)
-# Verbo finito dentro do sintagma: sinal de que a frase seguiu adiante e o
-# trecho nao e mais uma referencia, e sim uma oracao.
-_VERBO_FINITO = re.compile(
-    r'\b(?:sao|foi|foram|ha|tem|deve|devem|conduz|conduzem|'
-    r'aponta|apontam|autoriza|autorizam|impoe|impoem|permite|permitem|'
-    r'revela|revelam|demonstra|demonstram|confirma|confirmam|afasta|afastam|'
-    r'reconhece|reconhecem|firma|firmam|resulta|resultam|decorre|decorrem|'
-    r'importa|importam|enseja|ensejam|assenta|assentam|dispoe|dispoem)\b')
-# 'e'/'esta' so sao verbo COM acento; sem ele sao conjuncao e demonstrativo.
-# Por isso vao contra o texto original, nao contra a vista sem acento.
-_COPULA_ACENTUADA = re.compile(r'\b(?:é|está|estão|são|há)\b')
-_PALAVRA_VAZIA = {'que', 'a', 'o', 'as', 'os', 'de', 'da', 'do', 'em', 'no',
-                  'na', 'e', 'ou', 'para', 'por', 'com', 'ao', 'aos', 'se'}
-# A decisao SOB RECURSO nao e citacao: e o objeto do recurso, parte da historia
-# do proprio processo. Nos 26 documentos ela aparece 37 vezes e o gabarito nunca
-# a anota. Reconhecemos pelos dois lados do nucleo - o adjetivo que o qualifica
-# ('acordao recorrido') e a preposicao que o rege ('contra o acordao que...').
-# Metadiscurso: a frase descreve ESTE documento ('a Defensoria apresenta o
-# presente memorial, sintetizando as teses e destacando os precedentes
-# aplicaveis a especie'). A referencia vaga ali diz o que a peca contem, nao
-# invoca autoridade para uma proposicao. Sao 12 frases assim nos 226 documentos
-# medidos e nenhuma carrega citacao anotada.
-_AUTORREFERENCIA = re.compile(
-    r'\b(?:present\w+|referid\w+)\s+'
-    r'(?:memorial|peti[çc][ãa]o|parecer|pe[çc]a|manifesta[çc][ãa]o|raz[õo]es)', re.I)
-_DECISAO_SOB_RECURSO = re.compile(
-    r'^(?:ac[oó]rd[aã]o|decis[aã]o|senten[çc]a|julgado)\b[^.;]{0,20}?'
-    r'\b(?:recorrid|agravad|impugnad|atacad|hostilizad|combatid|guerread)', re.I)
-_REGENCIA_DE_RECURSO = re.compile(
-    r'\b(?:contra|impugna(?:r|ndo)?|recorre(?:r|u)?|reforma(?:r|ndo)?|'
-    r'ataca(?:r|ndo)?)\s+(?:[oa]s?\s+)?$', re.I)
-_SUFIXO_VERBAL = re.compile(
-    r'\b\w{3,}(?:ou|eu|iu|aram|eram|iram|ava|avam|iam|arao|erao|irao)\b')
-
-
 # Vista de busca: troca acento e confusao de OCR por letra simples, caractere a
 # caractere - o comprimento nao muda, entao um span achado na vista tem as
 # mesmas posicoes no texto original. Serve para 'ãrtigo', 'ãcórdão',
@@ -460,8 +371,6 @@ def extrai(texto):
         esquerda = texto[max(0, ini - 140):ini]
         if DISTRATOR_ESQUERDA.search(esquerda) or DISTRATOR_DIREITA.match(texto[fim:fim + 3]):
             continue
-        if AUTOS_PROPRIOS.search(esquerda) and ini < corpo_comeca:
-            continue  # numero dos autos deste documento, no cabecalho
         d = digitos_de(texto[ini:fim])
         if len(d) == 4 and 1900 <= int(d) <= 2100:
             continue  # ano solto ('Rcl de 2021'), nao numero de processo
@@ -506,64 +415,6 @@ def extrai(texto):
         ini = _estende_classe_a_esquerda(texto, m.start())
         _add(spans, texto, ini, m.end(), 'jurisprudencia', 'vaga_classe_ano_rel')
 
-    # 5. referencias anaforicas (sem qualquer identificador)
-    #
-    # DESLIGADO desde a revisao do gabarito de 04/09/2026. A organizacao retirou
-    # do goldenset as 30 referencias difusas ('jurisprudencia pacifica desta
-    # Corte', 'normas de regencia da materia') e fixou o criterio: so e citacao
-    # quando existe uma decisao concreta por tras dela. Uma referencia sem
-    # tribunal, ano nem relator nao aponta para decisao nenhuma - o que sobrou
-    # no gabarito e coberto por vaga_trib_ano_rel e vaga_classe_ano_rel.
-    #
-    # O reconhecedor fica aqui, e nao apagado, porque o contrato ja mudou duas
-    # vezes: se a organizacao reverter, e uma linha.
-    for inicio in [] if not ANCORA_ANAFORICA_ATIVA else INICIO_NUCLEO.finditer(vista):
-        m = VAGA_ANAFORICA.match(vista, inicio.start())
-        if m is None:
-            continue
-        t = texto[m.start():m.end()]
-        if any(ch.isdigit() for ch in t):
-            continue
-        if '\n\n' in t:
-            continue  # atravessou linha em branco: e titulo de secao, nao citacao
-        if t.split()[0].isupper() and len(t.split()[0]) > 3:
-            continue  # 'PRECEDENTES INVOCADOS' e cabecalho de secao
-        n = _norm(t)
-        if (_VERBO_FINITO.search(n) or _SUFIXO_VERBAL.search(n)
-                or _COPULA_ACENTUADA.search(t.lower())):
-            continue
-        pal = n.split()
-        if len(pal) < 3 or pal[-1] in _PALAVRA_VAZIA:
-            continue          # 'precedentes que' nao e referencia
-        # oracao relativa: o sintagma modifica a citacao ANTERIOR, nao e uma
-        # citacao nova ('a Rcl 55.626/DF, que bem ilustra a orientacao dominante')
-        if re.search(r'\bque\b[^.;]{0,28}$', _norm(texto[max(0, m.start() - 40):m.start()])):
-            continue
-        # linha de rotulo ('Assunto: ...') descreve ESTE documento: o que aparece
-        # ali nao esta sendo invocado como precedente. O teste e a LINHA em que o
-        # sintagma comeca, nao a posicao no documento - um limite de cabecalho
-        # calculado por heuristica engole o texto inteiro quando a peca e curta.
-        linha_ini = texto.rfind('\n', 0, m.start()) + 1
-        linha = texto[linha_ini:texto.find('\n', m.start()) % (len(texto) + 1)]
-        if len(linha) <= 120 and LINHA_DE_CABECALHO.match(linha):
-            continue
-        # a decisao sob recurso e o objeto do processo, nao uma citacao
-        if (_DECISAO_SOB_RECURSO.match(t)
-                or _REGENCIA_DE_RECURSO.search(texto[max(0, m.start() - 30):m.start()])):
-            continue
-        # frase que fala do proprio documento: descreve conteudo, nao invoca
-        ini_frase = max(texto.rfind('.', 0, m.start()), texto.rfind('\n\n', 0, m.start())) + 1
-        if _AUTORREFERENCIA.search(texto[ini_frase:m.start()]):
-            continue
-        # aponta para algo, OU esta em posicao de citacao - basta um dos dois
-        if not (_TEM_ANCORA.search(n)
-                or PISTA_CITACAO.search(_norm(texto[max(0, m.start() - 75):m.start()]))):
-            continue
-        nucleo = _norm(t).split()[0]
-        tipo = 'lei' if nucleo.startswith(('norma', 'legisla', 'disposit',
-                                           'artigo', 'artigos', 'preceito')) else 'jurisprudencia'
-        _add(spans, texto, m.start(), m.end(), tipo, 'vaga_anaforica')
-
     return _resolve_sobreposicao(spans)
 
 
@@ -605,7 +456,7 @@ def _lista_enumerada(texto, numeradas):
 def _resolve_sobreposicao(spans):
     """Mantem, entre spans que se sobrepoem, o mais especifico (o mais longo)."""
     ordem = {'sumula': 0, 'artigo': 0, 'vaga_trib_ano_rel': 1,
-             'vaga_classe_ano_rel': 1, 'numerada': 2, 'vaga_anaforica': 3}
+             'vaga_classe_ano_rel': 1, 'numerada': 2}
     spans.sort(key=lambda s: (ordem[s['forma']], -(s['fim'] - s['inicio'])))
     saida = []
     for s in spans:

@@ -101,8 +101,6 @@ def classifica(span, base):
 
     if forma == 'artigo':
         artigo = str(span['artigo']).rstrip('º°o').strip()
-        if artigo.lower() == 'correspondente':
-            return 'incompleta', None, 0.85, diag
         codigo = codigo_do_diploma(span['diploma_txt'])
         if codigo is None:
             # o diploma tem nome proprio ('Codigo de Transito Brasileiro',

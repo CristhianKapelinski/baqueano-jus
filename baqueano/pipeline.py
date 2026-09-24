@@ -6,30 +6,21 @@ schema_version, documento_id e, por citacao, um id proprio, o span em
 codepoints, o trecho literal, tipo, classificacao, resolucao (com `fonte`) e a
 confianca opcional.
 """
+from .calibracao import CONSTANTE
 from .classify import classifica
 from .extract import extrai
-from .features import sigmoide, vetor
 
 ESQUEMA = '1.2'
 FONTE = 'jusbrasil'
-
-try:
-    from .calibracao import CONSTANTE, MODO, PESOS
-except ImportError:  # ainda nao rodou escolhe_confianca.py
-    MODO, CONSTANTE, PESOS = None, None, None
 
 
 def processa_documento(texto, base, documento_id=None):
     citacoes = []
     for span in extrai(texto):
-        classe, id_canonico, conf, diag = classifica(span, base)
-        if MODO == 'constante':
-            conf = CONSTANTE
-        elif PESOS:
-            conf = sigmoide(sum(p * x for p, x in zip(PESOS, vetor(span, classe, diag))))
+        classe, id_canonico, _, _ = classifica(span, base)
         c = {'inicio': span['inicio'], 'fim': span['fim'],
              'trecho': span['trecho'], 'tipo': span['tipo'],
-             'classificacao': classe, 'confianca': round(conf, 4),
+             'classificacao': classe, 'confianca': CONSTANTE,
              'resolucao': ({'fonte': FONTE, 'id_canonico': id_canonico}
                            if id_canonico else None),
              # 'forma' e diagnostico interno; run.py corta antes de escrever o JSON
