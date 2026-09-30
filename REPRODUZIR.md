@@ -58,7 +58,16 @@ lado dela, depois em `/data` e por fim em `dados/`, pelo nome
   out/         os .json, escritos aqui
 ```
 
-O `Dockerfile` usa o `run.sh` como entrada:
+Para rodar no container, o `run_docker.sh` aceita os mesmos três argumentos:
+constrói a imagem, monta a base, os `.txt` e a pasta de saída, e roda com
+`--network none`. Os arquivos de saída ficam com o usuário que chamou.
+
+```bash
+bash run_docker.sh <caminho_db> <pasta_txt> <arquivo_saida.csv>
+```
+
+A imagem tem 120 MB, não instala nada além do Python 3.12 da imagem-base (fixada
+por digest) e usa o `run.sh` como entrada. Direto no `docker`:
 
 ```bash
 docker build -t baqueano .
@@ -67,6 +76,9 @@ docker run --rm --network none -v /caminho/data:/data baqueano \
 # sem argumentos: --input /data/in --output /data/out
 docker run --rm --network none -v /caminho/data:/data baqueano
 ```
+
+Os dois caminhos foram testados na base de desenvolvimento e saem idênticos,
+byte a byte, à submissão de 15/09.
 
 A base da avaliação é outra, e o código não depende de nenhum id da base de
 desenvolvimento: o índice de dispositivos e súmulas sai da primeira linha de

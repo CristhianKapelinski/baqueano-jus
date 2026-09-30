@@ -79,11 +79,16 @@ ele não existe. Isso torna o problema decidível, e é o que permite resolver p
 ## Como rodar
 
 O ponto de entrada da avaliação final recebe a base, a pasta dos `.txt` e o
-arquivo de saída:
+arquivo de saída. Os dois comandos abaixo aceitam os mesmos argumentos e dão a
+mesma saída, byte a byte:
 
 ```bash
-bash run.sh <caminho_db> <pasta_txt> submission.csv
+bash run.sh        <caminho_db> <pasta_txt> submission.csv   # Python 3.12 da máquina
+bash run_docker.sh <caminho_db> <pasta_txt> submission.csv   # o mesmo, no container
 ```
+
+O `run_docker.sh` constrói a imagem do `Dockerfile` na primeira vez, monta os
+caminhos sozinho e roda sem rede.
 
 Ele escreve o `submission.csv` e, em `submission_json/`, o JSON completo de
 cada documento, com todos os campos do contrato. Por baixo ele chama o
@@ -571,6 +576,7 @@ medição da solução, e as ferramentas que produzem insumos para as duas.
 
 ```
 run.sh                    ponto de entrada da avaliação final
+run_docker.sh             o mesmo, dentro do container
 run.py                    a submissão, só biblioteca padrão
 verifica.py               roda a bateria inteira
 

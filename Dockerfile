@@ -6,12 +6,12 @@
 # abaixo do teto de 60 s por documento.
 #
 # Pesos e dados NAO vao dentro da imagem. A base de referencia e montada.
-FROM python:3.12-slim
+# Imagem-base fixada por digest: o build de qualquer maquina usa o mesmo Python.
+FROM python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f
 
-# run.py usa apenas a biblioteca padrao. As dependencias abaixo servem as
-# suites de avaliacao e ficam pinadas para a imagem ser reproduzivel.
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
+# run.py usa apenas a biblioteca padrao, entao a imagem nao instala nada. As
+# dependencias de requirements.txt servem so as suites de avaliacao, que rodam
+# fora do container.
 
 WORKDIR /app
 COPY . /app
@@ -23,10 +23,12 @@ ENV PYTHONHASHSEED=0 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Ponto de entrada unico (regras da entrega final, 30/09):
+# Ponto de entrada unico (regras da entrega final, 30/09). O jeito simples de
+# usar a imagem e o run_docker.sh, que monta os caminhos sozinho:
+#   bash run_docker.sh <caminho_db> <pasta_txt> <arquivo_saida.csv>
+# Direto no docker, com a base e os .txt montados em /data:
 #   docker run --rm --network none -v /caminho/dados:/data baqueano \
 #     /data/<base>.db /data/in /data/out/submission.csv
-# Sem argumentos vale o contrato de 28/08, com a base achada em /data:
-#   docker run --rm --network none -v /caminho/dados:/data baqueano
+# Sem argumentos vale o contrato de 28/08, com a base achada em /data.
 ENTRYPOINT ["bash", "run.sh"]
 CMD ["--input", "/data/in", "--output", "/data/out"]
