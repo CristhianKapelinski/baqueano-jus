@@ -23,9 +23,10 @@ ENV PYTHONHASHSEED=0 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Contrato de execucao do desafio:
-#   docker run --rm --network none \
-#     -v /caminho/dados:/data:ro -v /caminho/saida:/data/out \
-#     baqueano --input /data/in --output /data/out
-ENTRYPOINT ["python", "run.py"]
+# Ponto de entrada unico (regras da entrega final, 30/09):
+#   docker run --rm --network none -v /caminho/dados:/data baqueano \
+#     /data/<base>.db /data/in /data/out/submission.csv
+# Sem argumentos vale o contrato de 28/08, com a base achada em /data:
+#   docker run --rm --network none -v /caminho/dados:/data baqueano
+ENTRYPOINT ["bash", "run.sh"]
 CMD ["--input", "/data/in", "--output", "/data/out"]

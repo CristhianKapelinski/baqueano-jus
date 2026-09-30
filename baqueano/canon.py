@@ -13,6 +13,8 @@ import collections
 import os
 import re
 import sqlite3
+import sys
+from pathlib import Path
 
 from .normalize import (com_correcao_ocr, digitos, sem_acento, texto_canonico,
                         texto_canonico_leve, variantes_cnj)
@@ -120,37 +122,65 @@ def _stm(t):
     return _primeiro(_cabecalho(t, 2000))
 
 
+def _generico(t):
+    # tribunal sem leitor proprio: o primeiro numero do cabecalho
+    return _primeiro(_cabecalho(t, 800))
+
+
 PARSERS = {'STF': _stf, 'STJ': _stj, 'TSE': _tse, 'TST': _tst, 'STM': _stm}
 
 # --------------------------------------------------------------------------
 # diplomas legais
 # --------------------------------------------------------------------------
 
-# Cada dispositivo da base traz o texto do artigo, mas nao diz de qual diploma
-# e. O mapa abaixo foi lido registro a registro no proprio acervo (o texto de
-# cada artigo identifica o codigo sem ambiguidade) e vale enquanto a cobertura
-# estiver congelada; `carrega_dispositivos` falha alto se algum id sumir.
-DISPOSITIVOS = {
-    10577194:  ('ce',   '276'),  # 'As decisoes dos Tribunais Regionais sao terminativas'
-    10590194:  ('cpm',  '290'),  # trafico - Codigo Penal Militar
-    10606184:  ('cdc',  '14'),   # 'O fornecedor de servicos responde ... defeitos'
-    10626510:  ('cf',   '93'),   # 'Estatuto da Magistratura' - CF/88
-    10637358:  ('clt',  '896'),  # 'Cabe Recurso de Revista para Turma do TST'
-    10641213:  ('cf',   '7'),    # 'direitos dos trabalhadores urbanos e rurais'
-    10641516:  ('cf',   '5'),    # 'Todos sao iguais perante a lei'
-    10647746:  ('clt',  '818'),  # onus da prova - reclamante/reclamado
-    10652044:  ('cpp',  '312'),  # prisao preventiva
-    10710324:  ('clt',  '477'),  # extincao do contrato de trabalho
-    10718759:  ('cc',   '186'),  # ato ilicito
-    11304039:  ('lc64', '1'),    # 'Sao inelegiveis' - LC 64/1990
-    28893055:  ('cpc',  '373'),  # onus da prova - autor/reu
+# Cada dispositivo da base abre com uma linha que diz qual e:
+# 'Artigo 373 da Lei nº 13.105, de 16 de março de 2015'. A base da avaliacao e
+# outra, entao o indice sai dessa linha e nao de uma lista de ids. Os codigos
+# com nome proprio sao reconhecidos pelo numero da lei; qualquer outra lei vira
+# a chave `lei:numero/ano`, a mesma que `codigo_do_diploma` gera na citacao.
+CODIGO_DA_LEI = {
+    '13105': 'cpc',   # Codigo de Processo Civil
+    '3689':  'cpp',   # Codigo de Processo Penal (Decreto-Lei)
+    '1002':  'cppm',  # Codigo de Processo Penal Militar (Decreto-Lei)
+    '1001':  'cpm',   # Codigo Penal Militar (Decreto-Lei)
+    '2848':  'cp',    # Codigo Penal (Decreto-Lei)
+    '8078':  'cdc',   # Codigo de Defesa do Consumidor
+    '5452':  'clt',   # Consolidacao das Leis do Trabalho (Decreto-Lei)
+    '10406': 'cc',    # Codigo Civil
+    '4737':  'ce',    # Codigo Eleitoral
+    '64':    'lc64',  # Lei Complementar 64/1990, das inelegibilidades
 }
 
-# Sumulas cujo numero nao aparece no proprio texto do registro.
-SUMULAS_SEM_NUMERO_NO_TEXTO = {
-    1289712966: ('10', 'STF', True),    # 'Viola a clausula de reserva de plenario' = SV 10
-    1431369957: ('331', 'TST', False),  # terceirizacao, itens I-VI = Sumula 331 do TST
-}
+_CABECALHO_ARTIGO = re.compile(r'Artigo\s+(\d[\d.]*)\s*[º°o]?\s+d[aoe]s?\s+(.+)', re.I)
+_NORMA_NUMERADA = re.compile(
+    r'\b(?:decreto-lei|lei\s+complementar|lei)\s+n\s*[º°o.]*\s*([\d.]+).*?(\d{4})\b', re.I)
+_CABECALHO_SUMULA = re.compile(
+    r'S[úu]mula\s+(Vinculante\s+)?n\s*[º°o.]*\s*(\d+)(?:\s+d[oe]\s+([A-Z]{2,4})\b)?', re.I)
+
+
+def normaliza_artigo(artigo):
+    """'7º' -> '7', '1.134' -> '1134': a mesma forma na base e na citacao."""
+    return str(artigo).strip().rstrip('º°o').replace('.', '').strip()
+
+
+def dispositivo_do_cabecalho(texto):
+    """(codigo, artigo) lidos da primeira linha do registro, ou None."""
+    m = _CABECALHO_ARTIGO.match(texto.lstrip().split('\n', 1)[0])
+    if not m:
+        return None
+    artigo, norma = normaliza_artigo(m.group(1)), m.group(2)
+    if re.search(r'constitui[çc][ãa]o', norma, re.I):
+        return 'cf', artigo
+    n = _NORMA_NUMERADA.search(norma)
+    if not n:
+        return None
+    num = n.group(1).replace('.', '')
+    return CODIGO_DA_LEI.get(num, f'lei:{num}/{n.group(2)}'), artigo
+
+
+def _avisa(msg):
+    print(f'AVISO base: {msg}', file=sys.stderr)
+
 
 _SUMULA_NO_TEXTO = re.compile(r'S[ÚU]MULA\s+(\d+)', re.I)
 
@@ -180,15 +210,16 @@ _LEI_NUMERADA = re.compile(
 def codigo_do_diploma(trecho):
     """Codigo canonico do diploma citado, ou None se nao houver diploma nomeado.
 
-    Uma lei numerada que nao seja a LC 64/1990 vira uma chave propria
-    (`lei:13105/2015`): e buscavel, mas nao esta na cobertura congelada, o que
-    faz da citacao uma `inventada` - nao uma `incompleta`.
+    Lei citada pelo numero cai no codigo dela ('Lei nº 13.105/2015' e o CPC);
+    outra lei numerada vira a chave `lei:numero/ano`, a mesma que o indice da
+    aos dispositivos dessa lei. Fora da cobertura, a citacao sai `inventada` -
+    nao `incompleta`.
     """
     leve = texto_canonico_leve(trecho)
     m = _LEI_NUMERADA.search(leve)
     if m:
         num, ano = m.group(1).replace('.', ''), m.group(2)
-        return 'lc64' if num == '64' else f'lei:{num}/{ano}'
+        return CODIGO_DA_LEI.get(num, f'lei:{num}/{ano}')
     c = texto_canonico(trecho)
     for tentativa in (c, com_correcao_ocr(c)):
         for cod, rx in _DIPLOMAS_RX:
@@ -267,7 +298,11 @@ def _posicao_no_cabecalho(texto, frase, janela, tribunal=None):
 class BaseCanonica:
     def __init__(self, db=None):
         db = db or DB_PADRAO
-        self.con = sqlite3.connect(db)
+        if not os.path.isfile(db):
+            raise FileNotFoundError(f'base canonica nao encontrada: {db}')
+        # so leitura: a base pode vir montada sem permissao de escrita, e um
+        # caminho errado nao cria um arquivo vazio no lugar
+        self.con = sqlite3.connect(Path(db).resolve().as_uri() + '?mode=ro', uri=True)
         self.acordaos = collections.defaultdict(list)   # (numero, tribunal) -> [reg]
         self.por_numero = collections.defaultdict(list)  # numero -> [(tribunal, [reg])]
         self.dispositivos = {}                           # (codigo, artigo) -> reg
@@ -285,8 +320,12 @@ class BaseCanonica:
         linhas = self.con.execute(
             "SELECT documento_id,id,tribunal,texto FROM documentos "
             "WHERE natureza='acordao'").fetchall()
+        sem_leitor = collections.Counter(t for _d, _i, t, _x in linhas if t not in PARSERS)
+        for trib, n in sem_leitor.items():
+            _avisa(f'{n} acordao(s) do tribunal {trib!r}, sem leitor proprio de '
+                   'cabecalho: usado o primeiro numero do cabecalho')
         for did, i, trib, texto in linhas:
-            n = PARSERS[trib](texto)
+            n = PARSERS.get(trib, _generico)(texto)
             if not n or len(n) < 4:
                 continue
             # a classe do cabecalho desempata dois recursos do mesmo processo
@@ -305,38 +344,37 @@ class BaseCanonica:
             self.por_numero[n].append((trib, regs))
 
     def _carrega_dispositivos(self):
-        for i, (cod, art) in DISPOSITIVOS.items():
-            row = self.con.execute(
-                "SELECT documento_id,id,natureza FROM documentos WHERE id=?", (i,)).fetchone()
-            if row is None or row[2] != 'dispositivo':
-                raise RuntimeError(
-                    f'dispositivo {i} nao esta mais na base como esperado - '
-                    'a cobertura mudou, revise baqueano.canon.DISPOSITIVOS')
-            self.dispositivos[(cod, art)] = {'documento_id': row[0], 'id': row[1]}
-        n = self.con.execute(
-            "SELECT COUNT(*) FROM documentos WHERE natureza='dispositivo'").fetchone()[0]
-        if n != len(DISPOSITIVOS):
-            raise RuntimeError(f'a base tem {n} dispositivos, o mapa tem {len(DISPOSITIVOS)}')
+        linhas = self.con.execute(
+            "SELECT documento_id,id,texto FROM documentos "
+            "WHERE natureza='dispositivo'").fetchall()
+        for did, i, texto in linhas:
+            chave = dispositivo_do_cabecalho(texto)
+            if chave is None:
+                _avisa(f'dispositivo {i}: primeira linha nao identifica o artigo, '
+                       'fica fora do indice')
+                continue
+            self.dispositivos.setdefault(chave, {'documento_id': did, 'id': i})
 
     def _carrega_sumulas(self):
         linhas = self.con.execute(
             "SELECT documento_id,id,tribunal,texto FROM documentos "
             "WHERE natureza='sumula'").fetchall()
         for did, i, trib, texto in linhas:
-            if i in SUMULAS_SEM_NUMERO_NO_TEXTO:
-                num, trib_, vinc = SUMULAS_SEM_NUMERO_NO_TEXTO[i]
+            m = _CABECALHO_SUMULA.match(texto.lstrip())
+            if m:
+                num, vinc = m.group(2), bool(m.group(1))
+                trib_ = trib or (m.group(3) or '').upper() or None
             else:
                 m = _SUMULA_NO_TEXTO.search(texto)
                 if not m:
-                    raise RuntimeError(
-                        f'sumula {i} sem numero no texto e sem entrada em '
-                        'SUMULAS_SEM_NUMERO_NO_TEXTO')
+                    _avisa(f'sumula {i}: numero nao encontrado, fica fora do indice')
+                    continue
                 num, trib_, vinc = m.group(1), trib, False
             reg = {'documento_id': did, 'id': i, 'tribunal': trib_, 'vinculante': vinc}
             if vinc:
-                self.sumulas_vinculantes[num] = reg
+                self.sumulas_vinculantes.setdefault(num, reg)
             else:
-                self.sumulas[(num, trib_)] = reg
+                self.sumulas.setdefault((num, trib_), reg)
 
     # -- consulta ----------------------------------------------------------
     def feitos_por_numero(self, cadeias, tribunais=None):

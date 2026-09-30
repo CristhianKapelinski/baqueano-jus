@@ -8,7 +8,7 @@
 """
 import re
 
-from .canon import codigo_do_diploma
+from .canon import codigo_do_diploma, normaliza_artigo
 from .normalize import cadeias_de_digitos, texto_canonico
 
 # Classe processual -> tribunal. So entram as classes privativas de um tribunal;
@@ -91,7 +91,7 @@ def classifica(span, base):
         return 'incompleta', None, diag
 
     if forma == 'artigo':
-        artigo = str(span['artigo']).rstrip('º°o').strip()
+        artigo = normaliza_artigo(span['artigo'])
         codigo = codigo_do_diploma(span['diploma_txt'])
         if codigo is None:
             # o diploma tem nome proprio ('Codigo de Transito Brasileiro',

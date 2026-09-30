@@ -78,9 +78,19 @@ ele não existe. Isso torna o problema decidível, e é o que permite resolver p
 
 ## Como rodar
 
+O ponto de entrada da avaliação final recebe a base, a pasta dos `.txt` e o
+arquivo de saída:
+
 ```bash
-python run.py --input <pasta_com_os_txt> --output saida_json
-python run.py <pasta_com_os_txt> saida_json --submissao submission.csv
+bash run.sh <caminho_db> <pasta_txt> submission.csv
+```
+
+Ele escreve o `submission.csv` e, em `submission_json/`, o JSON completo de
+cada documento, com todos os campos do contrato. Por baixo ele chama o
+`run.py`, que também roda direto:
+
+```bash
+python run.py --db <caminho_db> --input <pasta_txt> --output saida_json --submissao submission.csv
 ```
 
 `run.py` usa apenas a biblioteca padrão do Python 3.12: foi testado com o
@@ -89,8 +99,9 @@ faz chamada de rede e não pede GPU. Os 26 documentos de desenvolvimento saem em
 1,2 segundo com 130 MB de memória, num Ryzen 5 8600G, bem dentro do envelope de
 avaliação do desafio (1 GPU de 24 GB, 8 vCPUs, 32 GB de RAM).
 
-A base é procurada dentro da pasta de entrada ou ao lado dela, depois em `/data`
-e por fim em `dados/`; `--db` aponta outro caminho. `dados/` fica fora do git e guarda o pacote
+Sem `--db`, a base é procurada dentro da pasta de entrada ou ao lado dela,
+depois em `/data` e por fim em `dados/`, pelo nome `desafio1_bracis.db` ou como
+único `.db` da pasta. `dados/` fica fora do git e guarda o pacote
 do Kaggle como veio, extraído de
 `kaggle competitions download desafio-jusbrasil-bracis-2026`.
 
@@ -176,8 +187,15 @@ No TST a âncora não é o cabeçalho e sim a linha de autuação, aquela que di
 `estes autos de ... nº TST-..., em que é Agravante`, porque é ali que mora o
 número do próprio feito.
 
-Leis e súmulas não resolvem por número de processo. Os 18 registros de súmula e
+Leis e súmulas não resolvem por número de processo. Os registros de súmula e
 dispositivo existem para isso, e são casados por texto normalizado do diploma.
+O índice deles sai da primeira linha de cada registro (*Artigo 373 da Lei nº
+13.105, de 16 de março de 2015*, *Súmula n. 83 do STJ*), e não de uma lista de
+ids, porque a base da avaliação final é outra. A lei citada pelo número cai no
+código dela: *art. 373 da Lei nº 13.105/2015* e *art. 373 do CPC* resolvem para
+o mesmo registro. Registro cuja primeira linha não se lê, ou acórdão de
+tribunal sem leitor de cabeçalho próprio, vira aviso no `stderr`, e o lote
+segue.
 
 ### Confiança: uma constante, e por que é 1,0
 
@@ -552,7 +570,8 @@ O repositório separa três coisas que mudam por razões diferentes: a solução
 medição da solução, e as ferramentas que produzem insumos para as duas.
 
 ```
-run.py                    entrada da submissão, só biblioteca padrão
+run.sh                    ponto de entrada da avaliação final
+run.py                    a submissão, só biblioteca padrão
 verifica.py               roda a bateria inteira
 
 baqueano/                  A SOLUÇÃO

@@ -18,8 +18,11 @@ Ficam lá `desafio1_bracis.db`, `goldenset_offsets.csv`, `txt/`,
 ## O comando exato que gera as predições submetidas
 
 ```bash
-python run.py dados/txt saida_json --submissao submission.csv
+bash run.sh dados/desafio1_bracis.db dados/txt submission.csv
 ```
+
+Equivale a `python run.py --db dados/desafio1_bracis.db --input dados/txt
+--output submission_json --submissao submission.csv`.
 
 É o comando da submissão de 15/09 que tirou 1,10000 no Kaggle. O
 `submission.csv` sai do conversor do organizador, `dados/json_to_submission.py`;
@@ -31,29 +34,45 @@ pesos, chamada de rede ou dependência de GPU.
 
 ## Contrato de execução do desafio
 
-O desafio fixa `--input` e `--output`. A base é procurada dentro da pasta de
-entrada ou ao lado dela, depois em `/data` e por fim em `dados/`:
+A entrega final (e-mail de 30/09) pede um ponto de entrada único que recebe o
+caminho do `.db` e a pasta dos `.txt`:
+
+```bash
+bash run.sh <caminho_db> <pasta_txt> <arquivo_saida.csv>
+```
+
+Sai o CSV de submissão em `<arquivo_saida.csv>` e o JSON completo de cada
+documento em `<arquivo_saida>_json/`. Se o terceiro argumento não terminar em
+`.csv`, ele é tratado como pasta: os JSONs vão nela e o CSV em
+`<pasta>/submission.csv`.
+
+O contrato de 28/08 continua valendo. `run.sh --input ... --output ...` repassa
+os argumentos ao `run.py`, que procura a base dentro da pasta de entrada ou ao
+lado dela, depois em `/data` e por fim em `dados/`, pelo nome
+`desafio1_bracis.db` ou como único `.db` da pasta:
 
 ```
 /data/
-  desafio1_bracis.db
+  <base>.db
   in/          os .txt
   out/         os .json, escritos aqui
 ```
 
-```bash
-python run.py --input /data/in --output /data/out
-```
-
-Esse arranjo foi testado com o Python do sistema: 26 documentos, 192 citações.
-O `Dockerfile` roda exatamente esse comando como padrão:
+O `Dockerfile` usa o `run.sh` como entrada:
 
 ```bash
 docker build -t baqueano .
-docker run --rm --network none \
-  -v /caminho/data:/data \
-  baqueano
+docker run --rm --network none -v /caminho/data:/data baqueano \
+  /data/<base>.db /data/in /data/out/submission.csv
+# sem argumentos: --input /data/in --output /data/out
+docker run --rm --network none -v /caminho/data:/data baqueano
 ```
+
+A base da avaliação é outra, e o código não depende de nenhum id da base de
+desenvolvimento: o índice de dispositivos e súmulas sai da primeira linha de
+cada registro. Foi testado com três bases alteradas (um dispositivo a mais, um a
+menos, um acórdão de tribunal novo) e com a base sob outro nome: o lote roda
+inteiro nos quatro casos.
 
 ## Modelos
 

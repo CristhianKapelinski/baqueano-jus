@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """Le uma pasta de documentos .txt e escreve os JSONs do contrato.
 
-    python run.py <pasta_txt> <pasta_saida> [--submissao submission.csv]
+    python run.py <pasta_txt> <pasta_saida> [--db base.db] [--submissao submission.csv]
+
+Na avaliacao final o ponto de entrada e o run.sh, que passa a base explicita.
 
 O CSV de submissao e gerado pelo proprio conversor do organizador
 (dados/json_to_submission.py), para garantir que o formato e o dele.
@@ -29,13 +31,16 @@ def _acha_base(entrada):
     de execucao so fixa --input e --output. Procuramos no lugar mais provavel
     (ao lado da entrada) antes de cair no symlink de desenvolvimento.
     """
-    candidatos = [Path(entrada).parent / 'desafio1_bracis.db',
-                  Path(entrada) / 'desafio1_bracis.db',
-                  Path('/data') / 'desafio1_bracis.db',
-                  Path(__file__).parent / 'dados' / 'desafio1_bracis.db']
-    for c in candidatos:
-        if c.exists():
-            return str(c)
+    pastas = [Path(entrada).parent, Path(entrada), Path('/data'),
+              Path(__file__).parent / 'dados']
+    for pasta in pastas:
+        if (pasta / 'desafio1_bracis.db').is_file():
+            return str(pasta / 'desafio1_bracis.db')
+        # a base da avaliacao final e outra e pode ter outro nome: um .db
+        # sozinho na pasta so pode ser ela
+        outros = sorted(pasta.glob('*.db')) if pasta.is_dir() else []
+        if len(outros) == 1:
+            return str(outros[0])
     return None
 
 
